@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { DocxParserService } from "./parsing/docx-parser.service";
 import { PdfParserService } from "./parsing/pdf-parser.service";
@@ -47,6 +48,13 @@ export class QuestionsService {
   // submits the final set — THIS persists it. Replaces any existing
   // questions on the test (a re-upload/re-review fully replaces the set,
   // it does not append to a partial previous commit).
+  //
+  // Uses bulk createMany (with client-generated ids) instead of one
+  // create() call per question — a sequential loop of N round-trips over a
+  // networked connection (e.g. Neon's pooler) reliably blew past Prisma's
+  // default 5s interactive-transaction timeout on anything more than a
+  // couple of questions. Two bulk statements instead of N+1 sequential ones
+  // fixes that; the explicit timeout below is just a safety margin on top.
   async commit(testId: string, dto: CommitQuestionsDto) {
     const test = await this.prisma.test.findUnique({ where: { id: testId } });
     if (!test) throw new NotFoundException("Test not found");
@@ -54,41 +62,45 @@ export class QuestionsService {
       throw new BadRequestException("Questions can only be committed while the test is in draft");
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.question.deleteMany({ where: { testId } });
+    const questionIds = dto.questions.map(() => randomUUID());
+    const questionRows = dto.questions.map((q, i) => ({
+      id: questionIds[i],
+      testId,
+      questionText: q.questionText,
+      questionOrder: q.questionOrder,
+      questionType: q.questionType as any,
+      modelAnswer: q.modelAnswer,
+      rubricNotes: q.rubricNotes,
+    }));
+    const optionRows = dto.questions.flatMap((q, i) =>
+      q.options.map((o) => ({
+        questionId: questionIds[i],
+        optionText: o.optionText,
+        isCorrect: o.isCorrect,
+      }))
+    );
 
-      for (const q of dto.questions) {
-        await tx.question.create({
-          data: {
-            testId,
-            questionText: q.questionText,
-            questionOrder: q.questionOrder,
-            questionType: q.questionType as any,
-            modelAnswer: q.modelAnswer,
-            rubricNotes: q.rubricNotes,
-            options: {
-              create: q.options.map((o) => ({
-                optionText: o.optionText,
-                isCorrect: o.isCorrect,
-              })),
-            },
-          },
-        });
-      }
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.question.deleteMany({ where: { testId } });
+        if (questionRows.length > 0) await tx.question.createMany({ data: questionRows });
+        if (optionRows.length > 0) await tx.questionOption.createMany({ data: optionRows });
 
-      if (dto.sourceFileUrl) {
-        await tx.test.update({ where: { id: testId }, data: { sourceFileUrl: dto.sourceFileUrl } });
-      }
+        if (dto.sourceFileUrl) {
+          await tx.test.update({ where: { id: testId }, data: { sourceFileUrl: dto.sourceFileUrl } });
+        }
 
-      // Committing resets approval — a re-committed set must be reviewed
-      // again before the test can be scheduled (see TestsService.schedule).
-      await tx.test.update({ where: { id: testId }, data: { approved: false } });
+        // Committing resets approval — a re-committed set must be reviewed
+        // again before the test can be scheduled (see TestsService.schedule).
+        await tx.test.update({ where: { id: testId }, data: { approved: false } });
+      },
+      { timeout: 15000 }
+    );
 
-      return tx.question.findMany({
-        where: { testId },
-        include: { options: true },
-        orderBy: { questionOrder: "asc" },
-      });
+    return this.prisma.question.findMany({
+      where: { testId },
+      include: { options: true },
+      orderBy: { questionOrder: "asc" },
     });
   }
 
@@ -119,21 +131,24 @@ export class QuestionsService {
     const existing = await this.prisma.question.findUnique({ where: { id: questionId } });
     if (!existing) throw new NotFoundException("Question not found");
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.questionOption.deleteMany({ where: { questionId } });
-      return tx.question.update({
-        where: { id: questionId },
-        data: {
-          questionText: dto.questionText,
-          questionOrder: dto.questionOrder,
-          questionType: dto.questionType as any,
-          modelAnswer: dto.modelAnswer,
-          rubricNotes: dto.rubricNotes,
-          options: { create: dto.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })) },
-        },
-        include: { options: true },
-      });
-    });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.questionOption.deleteMany({ where: { questionId } });
+        return tx.question.update({
+          where: { id: questionId },
+          data: {
+            questionText: dto.questionText,
+            questionOrder: dto.questionOrder,
+            questionType: dto.questionType as any,
+            modelAnswer: dto.modelAnswer,
+            rubricNotes: dto.rubricNotes,
+            options: { create: dto.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })) },
+          },
+          include: { options: true },
+        });
+      },
+      { timeout: 15000 }
+    );
   }
 
   async deleteOne(questionId: string) {

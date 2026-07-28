@@ -13,34 +13,37 @@ export class BatchesService {
     const student = await this.prisma.student.findUnique({ where: { userId: dto.studentId } });
     if (!student) throw new NotFoundException("Student not found");
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.batchHistory.create({
-        data: {
-          studentId: dto.studentId,
-          oldBatch: student.batch,
-          newBatch: dto.newBatch,
-          changedById,
-          reason: dto.reason,
-          relatedTestId: dto.relatedTestId,
-        },
-      });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.batchHistory.create({
+          data: {
+            studentId: dto.studentId,
+            oldBatch: student.batch,
+            newBatch: dto.newBatch,
+            changedById,
+            reason: dto.reason,
+            relatedTestId: dto.relatedTestId,
+          },
+        });
 
-      const updated = await tx.student.update({
-        where: { userId: dto.studentId },
-        data: { batch: dto.newBatch },
-      });
+        const updated = await tx.student.update({
+          where: { userId: dto.studentId },
+          data: { batch: dto.newBatch },
+        });
 
-      await tx.auditLog.create({
-        data: {
-          actorId: changedById,
-          action: "batch_change",
-          targetType: "student",
-          targetId: dto.studentId,
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            actorId: changedById,
+            action: "batch_change",
+            targetType: "student",
+            targetId: dto.studentId,
+          },
+        });
 
-      return updated;
-    });
+        return updated;
+      },
+      { timeout: 15000 }
+    );
   }
 
   async historyForStudent(studentId: string) {
