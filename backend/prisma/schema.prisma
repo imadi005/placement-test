@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  teacher
+  coordinator
+  admin
+}
+
+enum Batch {
+  A
+  B
+  C
+}
+
+enum TestStatus {
+  draft
+  scheduled
+  live
+  ended
+}
+
+enum QuestionType {
+  mcq
+  short_answer
+  numeric
+  descriptive
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  auto_submitted
+  flagged
+  pending_grading
+  graded
+}
+
+enum ViolationType {
+  tab_switch
+  fullscreen_exit
+  devtools_suspected
+  copy_paste
+  window_blur
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  excused
+}
+
+// --- Identity & roles -------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  fullName     String   @map("full_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  student  Student?
+  teacher  Teacher?
+  auditLogs      AuditLog[]      @relation("actor")
+  batchChanges   BatchHistory[]  @relation("changedBy")
+  createdTests   Test[]          @relation("createdBy")
+  gradedAnswers  AttemptAnswer[] @relation("gradedBy")
+  markedAttendance Attendance[]  @relation("markedBy")
+
+  @@map("users")
+}
+
+model Student {
+  userId          String  @id @map("user_id")
+  user            User    @relation(fields: [userId], references: [id])
+  rollNo          String  @unique @map("roll_no")
+  batch           Batch
+  section         String
+  currentSemester Int     @map("current_semester")
+
+  attempts      TestAttempt[]
+  batchHistory  BatchHistory[]
+  attendance    Attendance[]
+
+  @@map("students")
+}
+
+model Teacher {
+  userId     String @id @map("user_id")
+  user       User   @relation(fields: [userId], references: [id])
+  department String
+
+  classAssignments TeacherClassAssignment[]
+
+  @@map("teachers")
+}
+
+model TeacherClassAssignment {
+  id        String @id @default(uuid())
+  teacherId String @map("teacher_id")
+  teacher   Teacher @relation(fields: [teacherId], references: [userId])
+  section   String
+  subject   String
+  dayOfWeek Int    @map("day_of_week")
+  startTime String @map("start_time") // stored as "HH:MM"
+  endTime   String @map("end_time")
+
+  attendance Attendance[]
+
+  @@map("teacher_class_assignments")
+}
+
+// --- Batch management (audited) ---------------------------------------
+
+model BatchHistory {
+  id             String   @id @default(uuid())
+  studentId      String   @map("student_id")
+  student        Student  @relation(fields: [studentId], references: [userId])
+  oldBatch       Batch    @map("old_batch")
+  newBatch       Batch    @map("new_batch")
+  changedById    String   @map("changed_by")
+  changedBy      User     @relation("changedBy", fields: [changedById], references: [id])
+  reason         String?
+  relatedTestId  String?  @map("related_test_id")
+  relatedTest    Test?    @relation(fields: [relatedTestId], references: [id])
+  changedAt      DateTime @default(now()) @map("changed_at")
+
+  @@map("batch_history")
+}
+
+// --- Tests & questions ---------------------------------------------------
+
+model Test {
+  id              String     @id @default(uuid())
+  title           String
+  batchScope      String     @map("batch_scope") // "A" | "B" | "C" | "ALL"
+  durationMinutes Int        @map("duration_minutes")
+  scheduledStart  DateTime?  @map("scheduled_start")
+  status          TestStatus @default(draft)
+  createdById     String     @map("created_by")
+  createdBy       User       @relation("createdBy", fields: [createdById], references: [id])
+  sourceFileUrl   String?    @map("source_file_url")
+  approved        Boolean    @default(false)
+
+  questions     Question[]
+  attempts      TestAttempt[]
+  batchChanges  BatchHistory[]
+
+  @@map("tests")
+}
+
+model Question {
+  id           String       @id @default(uuid())
+  testId       String       @map("test_id")
+  test         Test         @relation(fields: [testId], references: [id])
+  questionText String       @map("question_text")
+  questionOrder Int         @map("question_order")
+  marks        Decimal      @default(1)
+  questionType QuestionType @default(mcq) @map("question_type")
+  modelAnswer  String?      @map("model_answer")
+  rubricNotes  String?      @map("rubric_notes")
+
+  options QuestionOption[]
+  answers AttemptAnswer[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String   @map("question_id")
+  question   Question @relation(fields: [questionId], references: [id])
+  optionText String   @map("option_text")
+  isCorrect  Boolean  @map("is_correct")
+
+  selectedIn AttemptAnswer[]
+
+  @@map("question_options")
+}
+
+// --- Attempts, answers, violations -------------------------------------
+
+model TestAttempt {
+  id          String        @id @default(uuid())
+  testId      String        @map("test_id")
+  test        Test          @relation(fields: [testId], references: [id])
+  studentId   String        @map("student_id")
+  student     Student       @relation(fields: [studentId], references: [userId])
+  startedAt   DateTime?     @map("started_at")
+  submittedAt DateTime?     @map("submitted_at")
+  status      AttemptStatus @default(in_progress)
+  mcqScore    Decimal?      @map("mcq_score")
+  finalScore  Decimal?      @map("final_score")
+
+  answers    AttemptAnswer[]
+  violations Violation[]
+
+  @@unique([testId, studentId])
+  @@map("test_attempts")
+}
+
+model AttemptAnswer {
+  id                String       @id @default(uuid())
+  attemptId         String       @map("attempt_id")
+  attempt           TestAttempt  @relation(fields: [attemptId], references: [id])
+  questionId        String       @map("question_id")
+  question          Question     @relation(fields: [questionId], references: [id])
+  selectedOptionId  String?      @map("selected_option_id")
+  selectedOption    QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+  freeTextAnswer    String?      @map("free_text_answer")
+  aiSuggestedMarks  Decimal?     @map("ai_suggested_marks")
+  marksAwarded      Decimal?     @map("marks_awarded")
+  gradedById        String?      @map("graded_by")
+  gradedBy          User?        @relation("gradedBy", fields: [gradedById], references: [id])
+  gradedAt          DateTime?    @map("graded_at")
+  answeredAt        DateTime?    @map("answered_at")
+
+  @@map("attempt_answers")
+}
+
+model Violation {
+  id         String        @id @default(uuid())
+  attemptId  String        @map("attempt_id")
+  attempt    TestAttempt   @relation(fields: [attemptId], references: [id])
+  type       ViolationType
+  occurredAt DateTime      @default(now()) @map("occurred_at")
+  meta       Json?
+
+  @@map("violations")
+}
+
+// --- Attendance ----------------------------------------------------------
+
+model Attendance {
+  id                 String           @id @default(uuid())
+  studentId          String           @map("student_id")
+  student            Student          @relation(fields: [studentId], references: [userId])
+  classAssignmentId  String           @map("class_assignment_id")
+  classAssignment    TeacherClassAssignment @relation(fields: [classAssignmentId], references: [id])
+  date               DateTime         @db.Date
+  status             AttendanceStatus
+  markedById         String           @map("marked_by")
+  markedBy           User             @relation("markedBy", fields: [markedById], references: [id])
+
+  @@unique([studentId, classAssignmentId, date])
+  @@map("attendance")
+}
+
+// --- Audit ---------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String   @map("actor_id")
+  actor     User     @relation("actor", fields: [actorId], references: [id])
+  action    String
+  targetType String  @map("target_type")
+  targetId  String   @map("target_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_log")
+}
