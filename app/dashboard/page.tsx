@@ -66,6 +66,11 @@ export default function DashboardPage() {
       }
     }
     load();
+    // A coordinator can start a test at any moment while a student is
+    // sitting on this page — poll so "Live now" appears without the
+    // student having to manually refresh.
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const firstName = me?.fullName?.split(" ")[0] ?? "";

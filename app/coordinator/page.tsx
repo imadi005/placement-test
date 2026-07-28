@@ -41,9 +41,15 @@ export default function CoordinatorHomePage() {
 
   useEffect(() => {
     loadTests();
-    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  async function stopTest(testId: string) {
+    const res = await fetch(`${API_URL}/tests/${testId}/stop`, { method: "POST", headers: authHeaders() });
+    if (res.ok) await loadTests();
+    else setError("Couldn't stop the test.");
+  }
 
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
@@ -66,6 +72,11 @@ export default function CoordinatorHomePage() {
             </div>
             <div className="flex items-center gap-3">
               <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} now={now} />
+              {t.status === "live" && (
+                <Button variant="secondary" onClick={() => stopTest(t.id)}>
+                  Stop test
+                </Button>
+              )}
               <Button onClick={() => router.push(`/coordinator/live/${t.id}`)}>Monitor</Button>
             </div>
           </Card>
