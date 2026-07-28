@@ -224,6 +224,7 @@ model AttemptAnswer {
   gradedAt          DateTime?    @map("graded_at")
   answeredAt        DateTime?    @map("answered_at")
 
+  @@unique([attemptId, questionId])
   @@map("attempt_answers")
 }
 

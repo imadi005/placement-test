@@ -1,64 +1,111 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { TestHeader } from "@/components/test/TestHeader";
 import { QuestionCard, Option } from "@/components/test/QuestionCard";
 import { Button } from "@/components/ui/Button";
 
-// Placeholder — replace with a fetch to GET /tests/:id/attempt on mount.
-const QUESTIONS: { topic: string; text: string; options: Option[] }[] = [
-  {
-    topic: "Mathematics · Logic",
-    text: "If a sequence is defined so each term is the sum of the two preceding terms, and the first two terms are 3 and 5, what is the 6th term?",
-    options: [
-      { id: "a", label: "A", text: "21" },
-      { id: "b", label: "B", text: "34" },
-      { id: "c", label: "C", text: "48" },
-      { id: "d", label: "D", text: "55" },
-    ],
-  },
-];
-
-const TEST_DURATION_SECONDS = 40 * 60;
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const LOW_TIME_THRESHOLD_SECONDS = 5 * 60;
-const MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT = 5;
+
+interface BackendQuestion {
+  id: string;
+  questionText: string;
+  questionOrder: number;
+  marks: string;
+  questionType: string;
+  options: { id: string; optionText: string }[];
+}
 
 function formatTime(totalSeconds: number) {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
+  const safe = Math.max(0, totalSeconds);
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function authHeaders() {
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
 export default function LiveTestPage() {
   const params = useParams();
+  const router = useRouter();
+  const testId = params.testId as string;
+
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<BackendQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [secondsLeft, setSecondsLeft] = useState(TEST_DURATION_SECONDS);
+  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [violationCount, setViolationCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const violationCountRef = useRef(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const durationSecondsRef = useRef(0);
 
-  const question = QUESTIONS[currentIndex];
-
-  // Server-authoritative timer note: this client countdown is for display
-  // only. The real deadline must be enforced by the NestJS backend (via the
-  // Redis-held `attempt:{id}:state`) — never trust this clock for scoring.
+  // Design doc §5: attempt is created (or resumed) on join. The server
+  // returns `serverStartedAt` + the test's duration — the client countdown
+  // is derived from that, never from a locally-invented value.
   useEffect(() => {
+    async function startAttempt() {
+      try {
+        const res = await fetch(`${API_URL}/tests/${testId}/attempts/start`, {
+          method: "POST",
+          headers: authHeaders(),
+        });
+        if (!res.ok) {
+          setLoadError("Couldn't start this test. It may not be live yet.");
+          return;
+        }
+        const data = await res.json();
+        setAttemptId(data.attempt.id);
+        setQuestions(data.questions);
+
+        const durationMinutes = data.attempt.durationMinutes ?? 40;
+        durationSecondsRef.current = durationMinutes * 60;
+        const startedAt = new Date(data.serverStartedAt).getTime();
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        setSecondsLeft(Math.max(0, durationSecondsRef.current - elapsed));
+      } catch {
+        setLoadError("Couldn't reach the server. Is the backend running?");
+      }
+    }
+    startAttempt();
+  }, [testId]);
+
+  useEffect(() => {
+    if (!attemptId) return;
     const interval = setInterval(() => {
-      setSecondsLeft((s) => Math.max(0, s - 1));
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          handleSubmit("timeout");
+          return 0;
+        }
+        return s - 1;
+      });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId]);
 
-  // Report a violation to the backend — wire this to
-  // `socket.emit("test:violation", { attemptId, type, meta })` once the
-  // gateway is connected.
-  function reportViolation(type: string) {
-    violationCountRef.current += 1;
-    setViolationCount(violationCountRef.current);
-    if (violationCountRef.current >= MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT) {
-      handleAutoSubmit();
+  async function reportViolation(type: string) {
+    if (!attemptId) return;
+    try {
+      const res = await fetch(`${API_URL}/attempts/${attemptId}/violations`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json();
+      setViolationCount(data.violationCount ?? 0);
+      if (data.autoSubmitted) {
+        router.push(`/results/${attemptId}`);
+      }
+    } catch {
+      // Network hiccup on a violation report shouldn't crash the exam —
+      // the count just won't increment for this one event.
     }
   }
 
@@ -78,26 +125,69 @@ export default function LiveTestPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId]);
 
   function requestFullscreen() {
-    document.documentElement.requestFullscreen?.().catch(() => {
-      // Fullscreen can be denied by the browser/user — surface this as a
-      // banner state rather than failing silently (see the JSX below).
-    });
+    document.documentElement.requestFullscreen?.().catch(() => {});
   }
 
-  function handleAutoSubmit() {
-    // TODO: POST /attempts/:id/submit with reason: "violation_threshold"
+  async function selectOption(questionId: string, optionId: string) {
+    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
+    if (!attemptId) return;
+    try {
+      await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ questionId, selectedOptionId: optionId }),
+      });
+    } catch {
+      // Autosave failure on one question shouldn't block navigation —
+      // consider surfacing a subtle "not saved" indicator in a later pass.
+    }
   }
 
+  async function handleSubmit(reason: "manual" | "timeout" = "manual") {
+    if (!attemptId) return;
+    try {
+      await fetch(`${API_URL}/attempts/${attemptId}/submit`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+    } finally {
+      router.push(`/results/${attemptId}`);
+    }
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4 text-center">
+        <p className="text-body-md text-error">{loadError}</p>
+      </main>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="text-body-md text-on-surface-variant">Loading test…</p>
+      </main>
+    );
+  }
+
+  const question = questions[currentIndex];
   const isLowTime = secondsLeft <= LOW_TIME_THRESHOLD_SECONDS;
+  const options: Option[] = question.options.map((o, i) => ({
+    id: o.id,
+    label: String.fromCharCode(65 + i),
+    text: o.optionText,
+  }));
 
   return (
     <main className="mx-auto min-h-screen max-w-test-column px-4 pb-24">
       <TestHeader
         currentQuestion={currentIndex + 1}
-        totalQuestions={QUESTIONS.length}
+        totalQuestions={questions.length}
         timeRemainingLabel={formatTime(secondsLeft)}
         isLowTime={isLowTime}
       />
@@ -115,13 +205,11 @@ export default function LiveTestPage() {
 
       <div className="mt-6">
         <QuestionCard
-          topic={question.topic}
-          questionText={question.text}
-          options={question.options}
-          selectedOptionId={answers[currentIndex] ?? null}
-          onSelect={(optionId) =>
-            setAnswers((prev) => ({ ...prev, [currentIndex]: optionId }))
-          }
+          topic={`Question ${question.questionOrder}`}
+          questionText={question.questionText}
+          options={options}
+          selectedOptionId={answers[question.id] ?? null}
+          onSelect={(optionId) => selectOption(question.id, optionId)}
         />
       </div>
 
@@ -134,9 +222,15 @@ export default function LiveTestPage() {
           >
             ← Previous
           </Button>
-          <Button onClick={() => setCurrentIndex((i) => Math.min(QUESTIONS.length - 1, i + 1))}>
-            Save & next →
-          </Button>
+          {currentIndex === questions.length - 1 ? (
+            <Button variant="primary" onClick={() => handleSubmit("manual")}>
+              Submit test
+            </Button>
+          ) : (
+            <Button onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}>
+              Save & next →
+            </Button>
+          )}
         </div>
         <p className="pb-3 text-center text-label-caps text-on-surface-variant">
           Exam environment · {violationCount} flagged event{violationCount === 1 ? "" : "s"}

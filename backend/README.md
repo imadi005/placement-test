@@ -6,11 +6,13 @@ Matches `system-design/placement-test-platform-design.md` §2, §3, §8, §11.
 
 ```bash
 npm install
-cp .env.example .env         # then fill in a real Postgres URL + secrets
+cp .env.example .env         # then fill in a real Postgres URL, Redis URL + secrets
 npx prisma migrate dev --name init
 npm run prisma:seed
 npm run start:dev
 ```
+
+Needs a running Postgres **and Redis** instance (`REDIS_URL` in `.env` — `redis://localhost:6379` for local dev, or a free tier on Upstash for cloud).
 
 Server runs on `http://localhost:4000`.
 
@@ -46,11 +48,27 @@ Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent r
   - `POST /tests/:testId/questions/commit` — the coordinator's reviewed/edited final set gets persisted here; committing resets the test's `approved` flag so a re-upload always needs re-review
   - Manual `POST`/`PUT`/`DELETE` on individual questions for hand-editing after parse
   - Every draft question carries a `parseWarning` when the heuristic couldn't confidently find options or a marked answer — surface these prominently in the review UI, don't let a warned question slip through silently
+- **Attempts module — the live test-taking engine** (design doc §5):
+  - `POST /tests/:testId/attempts/start` — creates (or resumes) the attempt, adds the student to Redis's active-set for the test, strips `isCorrect` off options before returning questions to the client
+  - `POST /attempts/:id/answers` — autosave, upserts on `(attemptId, questionId)` so repeated saves never duplicate
+  - `POST /attempts/:id/violations` — persists every violation (audit trail), increments a Redis counter, auto-submits once the threshold (5) is crossed — the "violation scoring" approach from §7, not a guarantee
+  - `POST /attempts/:id/submit` — scores MCQ answers instantly; if the test has any non-MCQ questions the attempt goes to `pending_grading` instead of `graded` (§10a)
+- **Redis service** — wraps ioredis with the exact key patterns from design doc §4 (`attempt:{id}:state`, `attempt:{id}:violations`, `test:{id}:active_students`, pub/sub channel per test) — this is the single place that knows those key shapes
+- **WebSocket gateway** (`test.gateway.ts`) — Socket.io, JWT-authenticated per message (`WsJwtGuard`, same re-fetch-user trust model as the HTTP strategy). Rooms are `test:{testId}`; the gateway relays Redis pub/sub events to the room (coordinator's live-monitoring feed) and lets a coordinator start/stop a test over `coordinator:test_control`. It deliberately does NOT duplicate answer/violation persistence — that stays in `AttemptsService` via REST, the gateway is fan-out only
 - **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, attendance, batch history, audit log
 
 ## Not built yet
 
-Attempts/violations/attendance controllers, the WebSocket gateway for live monitoring. The schema already supports all of it — next modules follow the same pattern as `batches/`.
+Attendance controller, coordinator/admin frontend screens, descriptive-answer grading queue UI. The schema and REST patterns already support all of it.
+
+## Connecting from the frontend to the gateway
+
+```js
+import { io } from "socket.io-client";
+const socket = io(API_URL, { auth: { token: accessToken } });
+socket.emit("test:join", { testId });
+socket.on("test:event", (event) => { /* violation, join, submit, status-change events */ });
+```
 
 ## Question parser — current limitation
 
