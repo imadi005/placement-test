@@ -55,11 +55,18 @@ Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent r
   - `POST /attempts/:id/submit` — scores MCQ answers instantly; if the test has any non-MCQ questions the attempt goes to `pending_grading` instead of `graded` (§10a)
 - **Redis service** — wraps ioredis with the exact key patterns from design doc §4 (`attempt:{id}:state`, `attempt:{id}:violations`, `test:{id}:active_students`, pub/sub channel per test) — this is the single place that knows those key shapes
 - **WebSocket gateway** (`test.gateway.ts`) — Socket.io, JWT-authenticated per message (`WsJwtGuard`, same re-fetch-user trust model as the HTTP strategy). Rooms are `test:{testId}`; the gateway relays Redis pub/sub events to the room (coordinator's live-monitoring feed) and lets a coordinator start/stop a test over `coordinator:test_control`. It deliberately does NOT duplicate answer/violation persistence — that stays in `AttemptsService` via REST, the gateway is fan-out only
+- **Teacher-classes module** — `GET /class-assignments/me` (teacher's own calendar), `GET /class-assignments` (coordinator/admin — which teacher takes which class), `POST /class-assignments` (coordinator/admin sets these up; a teacher never creates their own)
+- **Attendance module**:
+  - `POST /class-assignments/:id/attendance` — teacher marks attendance for a date; ownership is enforced server-side (`assertOwnedByTeacher` — a teacher can never mark a class assigned to someone else, regardless of what the request body claims)
+  - `GET /class-assignments/:id/attendance?date=` — teacher pulls up a date's marks to edit
+  - `GET /students/me/attendance` — student's own dashboard widget: per-class % + overall (excused absences don't count against the denominator)
+  - `GET /students/:studentId/attendance` — coordinator/admin looking up any student
+  - `GET /attendance/summary` — coordinator/admin view: attendance % per class alongside which teacher takes it
 - **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, attendance, batch history, audit log
 
 ## Not built yet
 
-Attendance controller, coordinator/admin frontend screens, descriptive-answer grading queue UI. The schema and REST patterns already support all of it.
+Coordinator/admin frontend screens, descriptive-answer grading queue UI. The schema and REST patterns already support all of it.
 
 ## Connecting from the frontend to the gateway
 

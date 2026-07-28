@@ -49,11 +49,23 @@ async function main() {
     },
   });
 
+  const classAssignment = await prisma.teacherClassAssignment.create({
+    data: {
+      teacherId: teacher.id,
+      section: "A1",
+      subject: "Aptitude",
+      dayOfWeek: 2, // Tuesday
+      startTime: "10:00",
+      endTime: "11:00",
+    },
+  });
+
   console.log("Seeded test accounts (password for all: Password123!):");
   console.log("  student:     roll no 25MCAB01  /", student.email);
   console.log("  teacher:    ", teacher.email);
   console.log("  coordinator:", coordinator.email);
   console.log("  admin:      ", admin.email);
+  console.log("  class assignment id:", classAssignment.id, "(section A1, matches the seeded student)");
 }
 
 main()
