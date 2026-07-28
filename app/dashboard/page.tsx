@@ -96,6 +96,7 @@ export default function DashboardPage() {
       {upcomingTest && (
         <section className="mb-10">
           <UpcomingTestCard
+            testId={upcomingTest.id}
             title={upcomingTest.title}
             description={
               upcomingTest.status === "live"
@@ -108,6 +109,7 @@ export default function DashboardPage() {
                 : "TBD"
             }
             durationLabel={`${upcomingTest.durationMinutes} min`}
+            isLive={upcomingTest.status === "live"}
             hoursUntilStart={
               upcomingTest.scheduledStart
                 ? Math.max(0, Math.round((new Date(upcomingTest.scheduledStart).getTime() - Date.now()) / 3600000))
