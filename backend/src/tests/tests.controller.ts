@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -40,6 +40,12 @@ export class TestsController {
   @Roles("coordinator", "admin")
   liveStatus(@Param("id") id: string) {
     return this.testsService.getLiveStatus(id);
+  }
+
+  @Patch(":id")
+  @Roles("coordinator")
+  update(@Param("id") id: string, @Body() body: { scheduledStart: string }) {
+    return this.testsService.updateScheduledStart(id, body.scheduledStart);
   }
 
   @Post(":id/approve-questions")

@@ -20,6 +20,14 @@ export class TestsService {
     });
   }
 
+  // Lets the coordinator's create-test modal set a schedule time without a
+  // full update endpoint — deliberately narrow (one field) rather than a
+  // general PATCH, since scheduledStart is the only field that legitimately
+  // changes after a test is created in draft.
+  async updateScheduledStart(id: string, scheduledStart: string) {
+    return this.prisma.test.update({ where: { id }, data: { scheduledStart: new Date(scheduledStart) } });
+  }
+
   async findOne(id: string) {
     const test = await this.prisma.test.findUnique({
       where: { id },
@@ -68,8 +76,6 @@ export class TestsService {
     return this.prisma.test.update({ where: { id }, data: { status: "ended" } });
   }
 
-  // Called once the coordinator has reviewed the parsed question bank —
-  // flips the approval gate that `schedule()` checks above.
   // Snapshot for the coordinator's live monitoring screen's initial load —
   // real-time updates after this come from the WebSocket gateway's
   // `test:event` relay, this is just what populates the table on page load.
@@ -92,6 +98,10 @@ export class TestsService {
     }));
   }
 
+  // Called once the coordinator has reviewed the parsed question bank —
+  // flips the approval gate that `schedule()` checks above. In the current
+  // UI this is called automatically right after commit, as part of one
+  // Start/Schedule action — there's no separate user-facing "Approve" step.
   async markApproved(id: string) {
     return this.prisma.test.update({ where: { id }, data: { approved: true } });
   }
