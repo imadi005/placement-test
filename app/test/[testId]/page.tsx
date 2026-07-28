@@ -68,6 +68,10 @@ export default function LiveTestPage() {
         const startedAt = new Date(data.serverStartedAt).getTime();
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
         setSecondsLeft(Math.max(0, durationSecondsRef.current - elapsed));
+
+        if (data.questions.length === 0) {
+          setLoadError("This test has no questions yet — ask your coordinator to upload/commit a question set before starting it.");
+        }
       } catch {
         setLoadError("Couldn't reach the server. Is the backend running?");
       }

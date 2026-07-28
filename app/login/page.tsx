@@ -38,7 +38,16 @@ export default function LoginPage() {
       // TODO: move this into a proper auth context/provider once more pages
       // need the token — sessionStorage is a placeholder, not a final choice.
       sessionStorage.setItem("accessToken", data.accessToken);
-      router.push("/dashboard");
+      sessionStorage.setItem("role", data.user.role);
+      sessionStorage.setItem("fullName", data.user.fullName);
+
+      const roleRoutes: Record<string, string> = {
+        student: "/dashboard",
+        teacher: "/teacher/calendar",
+        coordinator: "/coordinator",
+        admin: "/admin",
+      };
+      router.push(roleRoutes[data.user.role] ?? "/dashboard");
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
     } finally {
