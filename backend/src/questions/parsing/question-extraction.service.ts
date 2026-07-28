@@ -24,7 +24,16 @@ export class QuestionExtractionService {
     const questionBoundary = /\n(?=(?:Q?\.?\s*)?\d{1,3}[.)]\s+\S)/g;
     const chunks = normalized.split(questionBoundary).filter((c) => c.trim().length > 0);
 
-    return chunks.map((chunk, index) => this.parseChunk(chunk.trim(), index + 1));
+    // The split above only guarantees chunks AFTER the first boundary start
+    // with a number — text before the very first numbered question (a
+    // title, "Set by: ..." line, instructions) ends up as chunks[0] and
+    // would otherwise get misread as a bogus "question 1". Drop it here
+    // rather than surfacing it as a fake question in the review UI.
+    const numberedChunkPattern = /^(?:Q?\.?\s*)?\d{1,3}[.)]\s+\S/;
+    const withoutPreamble =
+      chunks.length > 0 && !numberedChunkPattern.test(chunks[0].trim()) ? chunks.slice(1) : chunks;
+
+    return withoutPreamble.map((chunk, index) => this.parseChunk(chunk.trim(), index + 1));
   }
 
   private parseChunk(chunk: string, order: number): DraftQuestion {

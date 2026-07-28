@@ -20,22 +20,39 @@ Server runs on `http://localhost:4000`.
 
 All accounts use password: `Password123!`
 
-| Role | Login identifier |
-|---|---|
-| Student | roll no `25MCAB01` |
-| Teacher | `teacher.test@kju.edu` |
-| Coordinator | `coordinator.test@kju.edu` |
-| Admin | `admin.test@kju.edu` |
+**Staff:**
+| Role | Login | Notes |
+|---|---|---|
+| Coordinator | `priya.menon@kju.edu` | |
+| Admin | `r.iyer@kju.edu` | |
+| Teacher | `anitha.rao@kju.edu` | Teaches Aptitude, section A1, Tue 10-11am |
+| Teacher | `suresh.kumar@kju.edu` | Teaches Logical Reasoning, section A1, Thu 11am-12pm |
+
+**Students (all section A1):**
+| Roll no | Batch | Login |
+|---|---|---|
+| 25MCAB58 | A | `aditya.s@kju.edu` |
+| 25MCAB12 | A | `meera.k@kju.edu` |
+| 25MCAB27 | B | `rahul.v@kju.edu` |
+| 25MCAB33 | B (upgraded from C — check `batch_history`) | `sneha.p@kju.edu` |
+| 25MCAB41 | C | `arjun.n@kju.edu` |
+| 25MCAB05 | C | `divya.t@kju.edu` |
+
+The seed also creates: three weeks of attendance for the Aptitude class (varied present/absent/excused so the percentages look real), and **one live, ready-to-take test** — "Weekly Aptitude Test — Numbers & Logic" (batch A, 2 MCQ + 1 descriptive question, already approved) — log in as `aditya.s@kju.edu` or `meera.k@kju.edu` to take it immediately.
 
 Test with:
 ```bash
 curl -X POST http://localhost:4000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"25MCAB01","password":"Password123!"}'
+  -d '{"identifier":"25MCAB58","password":"Password123!"}'
 ```
 Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent requests) and sets an httpOnly refresh-token cookie.
 
 **Change these passwords or remove the seed script entirely before any real deployment** — it exists for local dev only.
+
+## Sample quiz document for testing the upload pipeline
+
+`../sample-data/weekly-aptitude-quiz.docx` — a 5-question set (4 MCQ + 1 descriptive) in the exact format `QuestionExtractionService` expects. Upload it via the coordinator's question-review screen (or `POST /tests/:testId/questions/parse-preview`) to see the parser in action. This exact file was used to validate the parser during development — including catching and fixing a real bug where a document's title/header line was getting misread as a bogus first question (now fixed: a leading non-numbered chunk is dropped as preamble, not surfaced as a fake question).
 
 ## What's built
 
@@ -89,6 +106,10 @@ an optional LLM-assisted structuring pass (as noted in the design doc §10)
 can be added later as a second parsing strategy the coordinator can pick
 when the heuristic struggles — swap it into `QuestionExtractionService`
 without touching the controller or commit flow.
+
+## How this was validated
+
+Prisma's native engine binaries download from `binaries.prisma.sh`, which isn't reachable from every sandboxed environment. If `npx prisma migrate dev` ever fails with a 403/checksum error on a locked-down network, that's what's happening — it'll work normally on a regular machine or CI runner with full internet access. `prisma/manual-init.sql` and `prisma/manual-seed.sql` are the raw-SQL equivalents of the schema and seed data (used to validate this schema end-to-end against a real local Postgres when Prisma's engine wasn't reachable) — they're a fallback, not the intended workflow. The normal path is always `npx prisma migrate dev` + `npm run prisma:seed`.
 
 ## Security notes baked in
 
