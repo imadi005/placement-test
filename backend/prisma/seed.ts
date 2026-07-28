@@ -1,102 +1,123 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
+import { randomUUID } from "crypto";
+import * as fs from "fs";
+import * as path from "path";
 
 const prisma = new PrismaClient();
 
 // Run with: npx prisma db seed
-// Every account uses password: Password123! — this is a realistic demo
-// dataset (multiple teachers, students spread across all three batches,
-// a full ready-to-take test, attendance history, one batch upgrade on
-// record) so the app looks and behaves like a real deployment rather than
-// a single lonely test user each. Change/remove all of this before any
-// real deployment — it's local dev only.
+// Password for EVERY seeded account: Password123!
+//
+// Student roster is REAL data (315 students) extracted and cleaned from
+// KJU's actual "I_YEAR_PG_Placement_Training_-_Batch_Wise.xlsx" — see
+// ../sample-data/kju-real-data-extract.xlsx for the cleaned extraction and
+// its Notes sheet for the two anomalies found in the source file.
+//
+// Two things here are NOT from the source data and are placeholders:
+// 1. `batch` (A/B/C) — this is our platform's own score-based performance
+//    batch, which doesn't exist in the source file at all (that file only
+//    has academic Section: MCA A/B/C/D, MSc DS, MSc CS — stored in
+//    `student.section`). Assigned round-robin here purely so the batch
+//    upgrade/downgrade feature and batch-scoped tests have something to
+//    demo against — replace with real batches once actual test scores exist.
+// 2. Class assignments/attendance — the source spreadsheet's weekly
+//    "training groups" (Group A, B (Batch 1), C (Batch 2), etc.) mix
+//    students from every academic section together for one training slot,
+//    which doesn't map cleanly onto this schema's one-class-one-section
+//    model. Rather than force a bad fit, this seed creates a small, honest
+//    set of class assignments against real academic sections instead of
+//    trying to reproduce the training-group structure faithfully.
 async function main() {
   const password = await bcrypt.hash("Password123!", 12);
 
-  // ===== Staff =====
+  // ===== Staff (real faculty names from the schedule's "Faculty Assignments" sheet) =====
   const coordinator = await prisma.user.create({
     data: { email: "priya.menon@kju.edu", passwordHash: password, role: "coordinator", fullName: "Priya Menon" },
   });
   const admin = await prisma.user.create({
     data: { email: "r.iyer@kju.edu", passwordHash: password, role: "admin", fullName: "Ramesh Iyer" },
   });
-  const teacherAnitha = await prisma.user.create({
+  const teacherVimala = await prisma.user.create({
     data: {
-      email: "anitha.rao@kju.edu",
+      email: "vimala@kju.edu",
       passwordHash: password,
       role: "teacher",
-      fullName: "Anitha Rao",
+      fullName: "Dr Vimala",
       teacher: { create: { department: "MCA" } },
     },
   });
-  const teacherSuresh = await prisma.user.create({
+  const teacherVinothina = await prisma.user.create({
     data: {
-      email: "suresh.kumar@kju.edu",
+      email: "vinothina@kju.edu",
       passwordHash: password,
       role: "teacher",
-      fullName: "Suresh Kumar",
+      fullName: "Dr Vinothina",
       teacher: { create: { department: "MCA" } },
     },
   });
 
-  // ===== Students across all three batches =====
-  const studentData = [
-    { email: "aditya.s@kju.edu", fullName: "Aditya Sharma", rollNo: "25MCAB58", batch: "A" as const },
-    { email: "meera.k@kju.edu", fullName: "Meera Krishnan", rollNo: "25MCAB12", batch: "A" as const },
-    { email: "rahul.v@kju.edu", fullName: "Rahul Verma", rollNo: "25MCAB27", batch: "B" as const },
-    { email: "sneha.p@kju.edu", fullName: "Sneha Pillai", rollNo: "25MCAB33", batch: "C" as const }, // upgraded to B below
-    { email: "arjun.n@kju.edu", fullName: "Arjun Nair", rollNo: "25MCAB41", batch: "C" as const },
-    { email: "divya.t@kju.edu", fullName: "Divya Thomas", rollNo: "25MCAB05", batch: "C" as const },
-  ];
+  // ===== Real student roster (315 students) — bulk-inserted for speed =====
+  const rosterPath = path.join(__dirname, "data", "students-real.json");
+  const roster: { name: string; rollNo: string; section: string }[] = JSON.parse(
+    fs.readFileSync(rosterPath, "utf-8")
+  );
 
-  const students = [];
-  for (const s of studentData) {
-    const user = await prisma.user.create({
-      data: {
-        email: s.email,
-        passwordHash: password,
-        role: "student",
-        fullName: s.fullName,
-        student: { create: { rollNo: s.rollNo, batch: s.batch, section: "A1", currentSemester: 3 } },
-      },
-    });
-    students.push(user);
-  }
-  const [aditya, meera, rahul, sneha, arjun, divya] = students;
+  const batchCycle: ("A" | "B" | "C")[] = ["A", "B", "C"];
+  const userRows = roster.map((s, i) => ({
+    id: randomUUID(),
+    email: `${s.rollNo.toLowerCase()}@kristujayanti.com`, // matches the real convention seen in the source file
+    passwordHash: password,
+    role: "student" as const,
+    fullName: s.name,
+  }));
+  const studentRows = roster.map((s, i) => ({
+    userId: userRows[i].id,
+    rollNo: s.rollNo,
+    batch: batchCycle[i % 3], // placeholder — see note above
+    section: s.section,
+    currentSemester: 1,
+  }));
 
-  // ===== Class assignments — two subjects, two teachers, same section =====
-  const aptitudeClass = await prisma.teacherClassAssignment.create({
-    data: { teacherId: teacherAnitha.id, section: "A1", subject: "Aptitude", dayOfWeek: 2, startTime: "10:00", endTime: "11:00" },
+  // createMany can't do nested writes, so users and students are inserted
+  // as two flat bulk operations sharing the same generated ids — far faster
+  // than 315 sequential prisma.user.create() calls with nested `student.create`.
+  await prisma.user.createMany({ data: userRows });
+  await prisma.student.createMany({ data: studentRows });
+
+  const byRoll = (roll: string) => {
+    const idx = roster.findIndex((s) => s.rollNo === roll);
+    return idx === -1 ? null : userRows[idx].id;
+  };
+
+  // ===== One real class assignment against a real academic section =====
+  const mcaAAptitude = await prisma.teacherClassAssignment.create({
+    data: { teacherId: teacherVimala.id, section: "MCA A", subject: "Aptitude", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
   });
   await prisma.teacherClassAssignment.create({
-    data: { teacherId: teacherSuresh.id, section: "A1", subject: "Logical Reasoning", dayOfWeek: 4, startTime: "11:00", endTime: "12:00" },
+    data: { teacherId: teacherVinothina.id, section: "MCA B", subject: "Programming Fundamentals", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
   });
 
-  // ===== Three weeks of attendance for the Aptitude class =====
-  const attendanceRows: { studentId: string; date: string; status: "present" | "absent" | "excused" }[] = [
-    { studentId: aditya.id, date: "2026-07-08", status: "present" },
-    { studentId: aditya.id, date: "2026-07-15", status: "present" },
-    { studentId: aditya.id, date: "2026-07-22", status: "absent" },
-    { studentId: meera.id, date: "2026-07-08", status: "present" },
-    { studentId: meera.id, date: "2026-07-15", status: "absent" },
-    { studentId: meera.id, date: "2026-07-22", status: "present" },
-    { studentId: rahul.id, date: "2026-07-08", status: "present" },
-    { studentId: rahul.id, date: "2026-07-15", status: "present" },
-    { studentId: rahul.id, date: "2026-07-22", status: "excused" },
-  ];
-  for (const row of attendanceRows) {
-    await prisma.attendance.create({
-      data: {
-        studentId: row.studentId,
-        classAssignmentId: aptitudeClass.id,
-        date: new Date(row.date),
-        status: row.status,
-        markedById: teacherAnitha.id,
-      },
-    });
+  // Attendance for the first 8 real MCA A students on the actual training dates from the source file
+  const mcaAStudents = roster.filter((s) => s.section === "MCA A").slice(0, 8);
+  const dates = ["2026-03-11", "2026-03-12", "2026-03-13"];
+  for (const s of mcaAStudents) {
+    const userId = byRoll(s.rollNo);
+    if (!userId) continue;
+    for (const [i, date] of dates.entries()) {
+      await prisma.attendance.create({
+        data: {
+          studentId: userId,
+          classAssignmentId: mcaAAptitude.id,
+          date: new Date(date),
+          status: i === 1 && s.rollNo.endsWith("02") ? "absent" : "present", // one deliberate absence for realism
+          markedById: teacherVimala.id,
+        },
+      });
+    }
   }
 
-  // ===== A real, live, ready-to-take test with mixed MCQ + descriptive =====
+  // ===== One live test, scoped to placeholder batch A =====
   const test = await prisma.test.create({
     data: {
       title: "Weekly Aptitude Test — Numbers & Logic",
@@ -109,7 +130,7 @@ async function main() {
     },
   });
 
-  const q1 = await prisma.question.create({
+  await prisma.question.create({
     data: {
       testId: test.id,
       questionOrder: 1,
@@ -131,23 +152,6 @@ async function main() {
     data: {
       testId: test.id,
       questionOrder: 2,
-      questionType: "mcq",
-      questionText: "A train 120m long crosses a pole in 6 seconds. What is its speed in km/h?",
-      options: {
-        create: [
-          { optionText: "60 km/h", isCorrect: false },
-          { optionText: "72 km/h", isCorrect: true },
-          { optionText: "80 km/h", isCorrect: false },
-          { optionText: "90 km/h", isCorrect: false },
-        ],
-      },
-    },
-  });
-
-  await prisma.question.create({
-    data: {
-      testId: test.id,
-      questionOrder: 3,
       questionType: "descriptive",
       questionText:
         "Explain, in your own words, how you would approach solving a work-and-time problem involving three people working at different rates.",
@@ -156,27 +160,35 @@ async function main() {
     },
   });
 
-  // ===== One batch upgrade on record — proves the audit trail works =====
-  await prisma.batchHistory.create({
-    data: {
-      studentId: sneha.id,
-      oldBatch: "C",
-      newBatch: "B",
-      changedById: coordinator.id,
-      reason: "Scored 88% on Weekly Aptitude Test #3, moved up from C to B",
-    },
-  });
-  await prisma.student.update({ where: { userId: sneha.id }, data: { batch: "B" } });
+  // ===== One batch upgrade on a real student, for a real audit-trail demo =====
+  const firstBatchAStudentIdx = studentRows.findIndex((s) => s.batch === "A");
+  if (firstBatchAStudentIdx !== -1) {
+    const upgradedUserId = studentRows[firstBatchAStudentIdx].userId;
+    await prisma.batchHistory.create({
+      data: {
+        studentId: upgradedUserId,
+        oldBatch: "C",
+        newBatch: "A",
+        changedById: coordinator.id,
+        reason: "Demo record — real batch history will follow actual test performance",
+      },
+    });
+  }
+
+  const sectionCounts = roster.reduce<Record<string, number>>((acc, s) => {
+    acc[s.section] = (acc[s.section] ?? 0) + 1;
+    return acc;
+  }, {});
 
   console.log("Seeded demo dataset (password for every account: Password123!):\n");
   console.log("Staff:");
   console.log("  coordinator:", coordinator.email);
   console.log("  admin:      ", admin.email);
-  console.log("  teacher:    ", teacherAnitha.email, "(Aptitude, section A1)");
-  console.log("  teacher:    ", teacherSuresh.email, "(Logical Reasoning, section A1)");
-  console.log("\nStudents:");
-  for (const s of studentData) console.log(`  ${s.rollNo}  batch ${s.batch === "C" && s.email === sneha.email ? "C→B (upgraded)" : s.batch}  ${s.email}`);
-  console.log("\nA live test is ready to take: 'Weekly Aptitude Test — Numbers & Logic' (batch A, question 1 id:", q1.id, ")");
+  console.log("  teacher:    ", teacherVimala.email, "(Aptitude, MCA A)");
+  console.log("  teacher:    ", teacherVinothina.email, "(Programming Fundamentals, MCA B)");
+  console.log(`\n${roster.length} real students seeded across sections:`, sectionCounts);
+  console.log("\nLog in as any student with their roll number, e.g.:", roster[0].rollNo, "/ Password123!");
+  console.log("A live test is ready to take: 'Weekly Aptitude Test — Numbers & Logic' (placeholder batch A)");
 }
 
 main()

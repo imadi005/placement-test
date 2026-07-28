@@ -25,26 +25,24 @@ All accounts use password: `Password123!`
 |---|---|---|
 | Coordinator | `priya.menon@kju.edu` | |
 | Admin | `r.iyer@kju.edu` | |
-| Teacher | `anitha.rao@kju.edu` | Teaches Aptitude, section A1, Tue 10-11am |
-| Teacher | `suresh.kumar@kju.edu` | Teaches Logical Reasoning, section A1, Thu 11am-12pm |
+| Teacher | `vimala@kju.edu` | Teaches Aptitude, MCA A, Tue 3:40-4:30pm |
+| Teacher | `vinothina@kju.edu` | Teaches Programming Fundamentals, MCA B |
 
-**Students (all section A1):**
-| Roll no | Batch | Login |
-|---|---|---|
-| 25MCAB58 | A | `aditya.s@kju.edu` |
-| 25MCAB12 | A | `meera.k@kju.edu` |
-| 25MCAB27 | B | `rahul.v@kju.edu` |
-| 25MCAB33 | B (upgraded from C — check `batch_history`) | `sneha.p@kju.edu` |
-| 25MCAB41 | C | `arjun.n@kju.edu` |
-| 25MCAB05 | C | `divya.t@kju.edu` |
+**Students — 315 REAL students**, extracted and cleaned from KJU's actual `I_YEAR_PG_Placement_Training_-_Batch_Wise.xlsx` (see `../sample-data/kju-real-data-extract.xlsx` for the cleaned extraction + a Notes sheet documenting two anomalies found in the source). Log in with any roll number, e.g. `25MCAA01` / `Password123!`.
 
-The seed also creates: three weeks of attendance for the Aptitude class (varied present/absent/excused so the percentages look real), and **one live, ready-to-take test** — "Weekly Aptitude Test — Numbers & Logic" (batch A, 2 MCQ + 1 descriptive question, already approved) — log in as `aditya.s@kju.edu` or `meera.k@kju.edu` to take it immediately.
+Real academic sections (stored in `student.section`): MCA A (64), MCA B (63), MCA C (64), MCA D (45), MSc Data Science (63), MSc Computer Science (16).
+
+**Two things in the seed are placeholders, not from the source file** — documented in `prisma/seed.ts`:
+- `student.batch` (A/B/C, our platform's score-based performance batch) — the source spreadsheet has no scores, so this is assigned round-robin purely so batch-scoped tests and the upgrade/downgrade feature have something to demo against.
+- Class assignments/attendance only cover MCA A / MCA B as a small honest sample — the source spreadsheet's weekly "training groups" mix every academic section together per slot, which doesn't map cleanly onto this schema's one-class-one-section model, so it wasn't force-fit.
+
+The seed also creates: attendance for 8 real MCA A students on the real training dates from the source file (11-13 March 2026), and **one live, ready-to-take test** — "Weekly Aptitude Test — Numbers & Logic" (placeholder batch A, 1 MCQ + 1 descriptive question, already approved).
 
 Test with:
 ```bash
 curl -X POST http://localhost:4000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"25MCAB58","password":"Password123!"}'
+  -d '{"identifier":"25MCAA01","password":"Password123!"}'
 ```
 Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent requests) and sets an httpOnly refresh-token cookie.
 
