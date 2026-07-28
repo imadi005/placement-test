@@ -42,7 +42,9 @@ first.
   deadline must be enforced server-side (see `system-design/...md` §5). Don't
   let this client clock become the source of truth when the backend lands.
 
-## Not built yet (coordinator, admin, teacher, results, question bank screens)
+- **Coordinator live-monitoring screen** (`app/coordinator/live/[testId]/page.tsx`) — real Socket.io connection (`lib/socket.ts`), joins the test's room, listens for `test:event` (violation/join/submit/status-change), Start/Stop buttons call the gateway's `coordinator:test_control`. Violation-count badges follow the sage/gold/crimson thresholds from `LiveMonitoringTable.tsx`
+
+## Not built yet (question-review upload UI, admin, teacher calendar, results screens)
 
 Same component patterns apply — reuse `Card`, `Badge`, `StatCard`,
 `ProgressRing` rather than introducing new visual language per screen. The

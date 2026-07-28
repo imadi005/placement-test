@@ -70,6 +70,28 @@ export class TestsService {
 
   // Called once the coordinator has reviewed the parsed question bank —
   // flips the approval gate that `schedule()` checks above.
+  // Snapshot for the coordinator's live monitoring screen's initial load —
+  // real-time updates after this come from the WebSocket gateway's
+  // `test:event` relay, this is just what populates the table on page load.
+  async getLiveStatus(id: string) {
+    const attempts = await this.prisma.testAttempt.findMany({
+      where: { testId: id, status: "in_progress" },
+      include: {
+        student: { include: { user: { select: { fullName: true } } } },
+        _count: { select: { violations: true } },
+      },
+    });
+
+    return attempts.map((a) => ({
+      attemptId: a.id,
+      studentId: a.studentId,
+      studentName: a.student.user.fullName,
+      batch: a.student.batch,
+      startedAt: a.startedAt,
+      violationCount: a._count.violations,
+    }));
+  }
+
   async markApproved(id: string) {
     return this.prisma.test.update({ where: { id }, data: { approved: true } });
   }

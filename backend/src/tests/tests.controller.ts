@@ -36,6 +36,12 @@ export class TestsController {
     return this.testsService.findOne(id);
   }
 
+  @Get(":id/live-status")
+  @Roles("coordinator", "admin")
+  liveStatus(@Param("id") id: string) {
+    return this.testsService.getLiveStatus(id);
+  }
+
   @Post(":id/approve-questions")
   @Roles("coordinator")
   approve(@Param("id") id: string) {
