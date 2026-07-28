@@ -29,6 +29,7 @@ export function CreateTestModal({ onClose, onDone }: Props) {
   const [title, setTitle] = useState("");
   const [batchScope, setBatchScope] = useState("ALL");
   const [durationMinutes, setDurationMinutes] = useState(30);
+  const [mode, setMode] = useState<"now" | "schedule">("now");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
@@ -227,25 +228,52 @@ export function CreateTestModal({ onClose, onDone }: Props) {
               className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface disabled:opacity-60"
             />
           </label>
-          <label>
-            <span className="mb-1 block text-body-sm text-on-surface-variant">Date (for scheduling)</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
-            />
-          </label>
-          <label>
-            <span className="mb-1 block text-body-sm text-on-surface-variant">Time</span>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
-            />
-          </label>
         </div>
+
+        {/* When to run it */}
+        <div className="mb-6 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("now")}
+            className={`rounded-md px-3 py-1.5 text-body-sm ${
+              mode === "now" ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+            }`}
+          >
+            Start immediately
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("schedule")}
+            className={`rounded-md px-3 py-1.5 text-body-sm ${
+              mode === "schedule" ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+            }`}
+          >
+            Schedule for later
+          </button>
+        </div>
+
+        {mode === "schedule" && (
+          <div className="mb-6 grid grid-cols-2 gap-3">
+            <label>
+              <span className="mb-1 block text-body-sm text-on-surface-variant">Date</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-body-sm text-on-surface-variant">Time</span>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
+              />
+            </label>
+          </div>
+        )}
 
         {/* Upload + confirm */}
         <div className="mb-6 border-t border-outline-variant pt-6">
@@ -282,18 +310,20 @@ export function CreateTestModal({ onClose, onDone }: Props) {
           )}
         </div>
 
-        {/* Final actions */}
+        {/* Final action */}
         <div className="flex items-center justify-end gap-3 border-t border-outline-variant pt-4">
-          <Button
-            variant="secondary"
-            onClick={handleSchedule}
-            disabled={!canSubmit || !date || !time || isSubmitting !== null}
-          >
-            {isSubmitting === "schedule" ? "Scheduling…" : "Schedule"}
-          </Button>
-          <Button onClick={handleStartNow} disabled={!canSubmit || isSubmitting !== null}>
-            {isSubmitting === "start" ? "Starting…" : "Start immediately"}
-          </Button>
+          {mode === "schedule" ? (
+            <Button
+              onClick={handleSchedule}
+              disabled={!canSubmit || !date || !time || isSubmitting !== null}
+            >
+              {isSubmitting === "schedule" ? "Scheduling…" : "Schedule"}
+            </Button>
+          ) : (
+            <Button onClick={handleStartNow} disabled={!canSubmit || isSubmitting !== null}>
+              {isSubmitting === "start" ? "Starting…" : "Start immediately"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
