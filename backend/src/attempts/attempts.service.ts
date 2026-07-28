@@ -187,4 +187,13 @@ export class AttemptsService {
     if (attempt.studentId !== studentId) throw new ForbiddenException("Not your attempt");
     return attempt;
   }
+
+  // Student's own dashboard — score history across every test they've taken.
+  async listForStudent(studentId: string) {
+    return this.prisma.testAttempt.findMany({
+      where: { studentId },
+      include: { test: { select: { title: true } } },
+      orderBy: { submittedAt: "desc" },
+    });
+  }
 }

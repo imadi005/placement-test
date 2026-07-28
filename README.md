@@ -31,8 +31,8 @@ first.
 
 ## What's real vs. placeholder right now
 
-- **Login is now wired to the real backend** (`app/login/page.tsx` calls `POST /auth/login` on the NestJS API, see `../backend/README.md` for test credentials and setup)
-- Dashboard and test pages still render with **hardcoded placeholder data** — swap for real fetches once the corresponding NestJS modules exist (only `auth`, `users/me`, and `batches` are built so far)
+- **Login is wired to the real backend** (`app/login/page.tsx` calls `POST /auth/login`)
+- **Student dashboard is wired to the real backend** (`app/dashboard/page.tsx`) — real name via `GET /users/me`, real upcoming test via `GET /tests`, real score history via `GET /students/me/attempts`, real attendance via `GET /students/me/attendance`. No more hardcoded "Alexander"/placeholder rows.
 - The live test screen wires up the **real browser-level anti-cheat hooks**
   (Page Visibility API for tab-switch, Fullscreen API for exit detection) —
   these fire against local state only for now. Wire `reportViolation()` in

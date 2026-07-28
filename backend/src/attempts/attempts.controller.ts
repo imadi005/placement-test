@@ -44,4 +44,9 @@ export class AttemptsController {
   getResult(@Param("attemptId") attemptId: string, @CurrentUser() user: { id: string }) {
     return this.attemptsService.getResult(attemptId, user.id);
   }
+
+  @Get("students/me/attempts")
+  listMine(@CurrentUser() user: { id: string }) {
+    return this.attemptsService.listForStudent(user.id);
+  }
 }

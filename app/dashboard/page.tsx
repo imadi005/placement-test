@@ -1,55 +1,152 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { UpcomingTestCard } from "@/components/dashboard/UpcomingTestCard";
 import { ScoreHistoryTable, ScoreRow } from "@/components/dashboard/ScoreHistoryTable";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { StatCard } from "@/components/ui/StatCard";
 
-// Placeholder data — replace with a server-side fetch to the NestJS API
-// (GET /students/me/dashboard) once the backend is wired up.
-const scoreRows: ScoreRow[] = [
-  { testName: "Data Structures & Algorithms", dateCompleted: "Sept 12, 2026", score: "88/100", status: "graded" },
-  { testName: "Database Management Systems", dateCompleted: "Aug 28, 2026", score: "76/100", status: "graded" },
-  { testName: "Logical Reasoning & Aptitude", dateCompleted: "Aug 15, 2026", score: "—", status: "pending_grading" },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+function authHeaders() {
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+  return { Authorization: `Bearer ${token}` };
+}
+
+interface Me {
+  fullName: string;
+}
+interface TestSummary {
+  id: string;
+  title: string;
+  status: string;
+  scheduledStart: string | null;
+  durationMinutes: number;
+}
+interface Attempt {
+  id: string;
+  status: string;
+  mcqScore: string | null;
+  finalScore: string | null;
+  submittedAt: string | null;
+  test: { title: string };
+}
+interface AttendanceSummary {
+  perClass: { classAssignmentId: string; subject: string; percentage: number }[];
+  overallPercentage: number;
+}
 
 export default function DashboardPage() {
+  const [me, setMe] = useState<Me | null>(null);
+  const [upcomingTest, setUpcomingTest] = useState<TestSummary | null>(null);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [meRes, testsRes, attemptsRes, attendanceRes] = await Promise.all([
+          fetch(`${API_URL}/users/me`, { headers: authHeaders() }),
+          fetch(`${API_URL}/tests`, { headers: authHeaders() }),
+          fetch(`${API_URL}/students/me/attempts`, { headers: authHeaders() }),
+          fetch(`${API_URL}/students/me/attendance`, { headers: authHeaders() }),
+        ]);
+
+        if (meRes.ok) setMe(await meRes.json());
+        if (testsRes.ok) {
+          const tests: TestSummary[] = await testsRes.json();
+          const next = tests.find((t) => t.status === "live" || t.status === "scheduled");
+          setUpcomingTest(next ?? null);
+        }
+        if (attemptsRes.ok) setAttempts(await attemptsRes.json());
+        if (attendanceRes.ok) setAttendance(await attendanceRes.json());
+      } catch {
+        setError("Couldn't reach the server. Is the backend running?");
+      }
+    }
+    load();
+  }, []);
+
+  const firstName = me?.fullName?.split(" ")[0] ?? "";
+
+  const scoreRows: ScoreRow[] = attempts.map((a) => ({
+    testName: a.test.title,
+    dateCompleted: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—",
+    score:
+      a.status === "pending_grading"
+        ? "—"
+        : a.finalScore ?? a.mcqScore ?? "—",
+    status: a.status === "pending_grading" ? "pending_grading" : "graded",
+  }));
+
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
       <header className="mb-8">
         <h1 className="font-serif text-display-lg-mobile text-on-surface md:text-display-lg">
-          Hello, Alexander.
+          {me ? `Hello, ${firstName}.` : "Hello."}
         </h1>
         <p className="mt-1 text-body-md text-on-surface-variant">
-          Welcome back. You have one upcoming assessment.
+          {upcomingTest ? "Welcome back. You have one upcoming assessment." : "Welcome back."}
         </p>
       </header>
 
-      <section className="mb-10">
-        <UpcomingTestCard
-          title="Systems Architecture Placement"
-          description="Final evaluation for the Technical Architect stream. Ensure your environment is set up 15 minutes prior."
-          date="Oct 24, 2026"
-          durationLabel="10:00 AM (2h)"
-          hoursUntilStart={62}
-        />
-      </section>
+      {error && <p className="mb-4 text-body-sm text-error">{error}</p>}
+
+      {upcomingTest && (
+        <section className="mb-10">
+          <UpcomingTestCard
+            title={upcomingTest.title}
+            description={
+              upcomingTest.status === "live"
+                ? "This test is live now — you can start it immediately."
+                : "Ensure your environment is set up 15 minutes prior."
+            }
+            date={
+              upcomingTest.scheduledStart
+                ? new Date(upcomingTest.scheduledStart).toLocaleString()
+                : "TBD"
+            }
+            durationLabel={`${upcomingTest.durationMinutes} min`}
+            hoursUntilStart={
+              upcomingTest.scheduledStart
+                ? Math.max(0, Math.round((new Date(upcomingTest.scheduledStart).getTime() - Date.now()) / 3600000))
+                : 0
+            }
+          />
+        </section>
+      )}
 
       <section className="mb-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-headline-md text-on-surface">Assessment performance</h2>
-          <a href="/dashboard/results" className="text-body-sm text-primary underline underline-offset-2">
-            View all
-          </a>
         </div>
-        <ScoreHistoryTable rows={scoreRows} />
+        {scoreRows.length > 0 ? (
+          <ScoreHistoryTable rows={scoreRows} />
+        ) : (
+          <p className="text-body-sm text-on-surface-variant">No tests taken yet.</p>
+        )}
       </section>
 
       <section>
         <h2 className="mb-4 font-serif text-headline-md text-on-surface">Attendance summary</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <ProgressRing percent={90} label="Mathematics" sublabel="18/20 lectures" />
-          <ProgressRing percent={75} label="Physics" sublabel="15/20 lectures" color="#735c00" />
-          <ProgressRing percent={95} label="Operating Systems" sublabel="19/20 lectures" color="#4e635a" />
-          <StatCard label="Overall attendance" value="86%" sublabel="Eligible for finals" />
+          {attendance?.perClass.map((c) => (
+            <ProgressRing
+              key={c.classAssignmentId}
+              percent={c.percentage}
+              label={c.subject}
+              sublabel=""
+            />
+          ))}
+          {attendance && (
+            <StatCard
+              label="Overall attendance"
+              value={`${attendance.overallPercentage}%`}
+              sublabel={attendance.overallPercentage >= 75 ? "Eligible for finals" : "Below threshold"}
+            />
+          )}
+          {!attendance && <p className="text-body-sm text-on-surface-variant">No attendance recorded yet.</p>}
         </div>
       </section>
     </main>
