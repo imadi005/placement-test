@@ -62,11 +62,12 @@ Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent r
   - `GET /students/me/attendance` — student's own dashboard widget: per-class % + overall (excused absences don't count against the denominator)
   - `GET /students/:studentId/attendance` — coordinator/admin looking up any student
   - `GET /attendance/summary` — coordinator/admin view: attendance % per class alongside which teacher takes it
+- **Batch distribution** (`GET /batches/distribution`) and **class roster** (`GET /class-assignments/:id/roster`) — small additions backing the admin dashboard and teacher attendance-marking screens
 - **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, attendance, batch history, audit log
 
 ## Not built yet
 
-Coordinator/admin frontend screens, descriptive-answer grading queue UI. The schema and REST patterns already support all of it.
+Descriptive-answer grading queue (backend endpoints + review UI).
 
 ## Connecting from the frontend to the gateway
 

@@ -18,6 +18,12 @@ export class BatchesController {
     return this.batchesService.changeBatch(dto, user.id);
   }
 
+  @Get("distribution")
+  @Roles("coordinator", "admin")
+  distribution() {
+    return this.batchesService.getDistribution();
+  }
+
   @Get(":studentId/history")
   @Roles("coordinator", "admin")
   async history(@Param("studentId") studentId: string) {

@@ -49,4 +49,13 @@ export class BatchesService {
       orderBy: { changedAt: "desc" },
     });
   }
+
+  // Admin/coordinator dashboard widget — how many students sit in each batch right now.
+  async getDistribution() {
+    const grouped = await this.prisma.student.groupBy({
+      by: ["batch"],
+      _count: { _all: true },
+    });
+    return grouped.map((g) => ({ batch: g.batch, count: g._count._all }));
+  }
 }

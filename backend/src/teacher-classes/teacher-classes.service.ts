@@ -41,4 +41,15 @@ export class TeacherClassesService {
     }
     return assignment;
   }
+
+  // Roster for the attendance-marking screen — every student in the
+  // assignment's section. Ownership-checked the same way marking is.
+  async getRoster(classAssignmentId: string, teacherId: string) {
+    const assignment = await this.assertOwnedByTeacher(classAssignmentId, teacherId);
+    return this.prisma.student.findMany({
+      where: { section: assignment.section },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { rollNo: "asc" },
+    });
+  }
 }

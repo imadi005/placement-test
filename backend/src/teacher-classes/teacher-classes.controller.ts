@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -22,6 +22,12 @@ export class TeacherClassesController {
   @Roles("teacher")
   findMine(@CurrentUser() user: { id: string }) {
     return this.teacherClassesService.findForTeacher(user.id);
+  }
+
+  @Get(":id/roster")
+  @Roles("teacher")
+  roster(@Param("id") id: string, @CurrentUser() user: { id: string }) {
+    return this.teacherClassesService.getRoster(id, user.id);
   }
 
   // RBAC matrix §8: coordinator — "which teacher takes which class"

@@ -43,8 +43,12 @@ first.
   let this client clock become the source of truth when the backend lands.
 
 - **Coordinator live-monitoring screen** (`app/coordinator/live/[testId]/page.tsx`) — real Socket.io connection (`lib/socket.ts`), joins the test's room, listens for `test:event` (violation/join/submit/status-change), Start/Stop buttons call the gateway's `coordinator:test_control`. Violation-count badges follow the sage/gold/crimson thresholds from `LiveMonitoringTable.tsx`
+- **Question review/upload screen** (`app/coordinator/tests/[testId]/questions/page.tsx`) — upload docx/pdf → parsed draft renders as editable cards, `parseWarning`s surfaced as gold badges, every field (question text, options, correct-answer toggle, model answer for descriptive) editable before commit — nothing reaches the DB until "Commit" is pressed
+- **Admin dashboard** (`app/admin/page.tsx`) — read-only: batch distribution, teacher/attendance % table, full test list. No mutation controls anywhere on this screen, matching the RBAC matrix's "view-all except add questions/batch changes" for admin
+- **Teacher calendar** (`app/teacher/calendar/page.tsx`) — weekly grid from `GET /class-assignments/me`, click a class to open `AttendancePanel` (real roster fetch + present/absent/excused toggle + save)
+- **Results screen** (`app/results/[attemptId]/page.tsx`) — real fetch from `GET /attempts/:id/result`; shows the `pending_grading` state honestly (MCQ score visible immediately, final score withheld) rather than faking a complete number
 
-## Not built yet (question-review upload UI, admin, teacher calendar, results screens)
+## Not built yet (descriptive-answer grading queue UI)
 
 Same component patterns apply — reuse `Card`, `Badge`, `StatCard`,
 `ProgressRing` rather than introducing new visual language per screen. The
