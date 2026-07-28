@@ -40,11 +40,29 @@ Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent r
 - **Auth**: login (roll no or email), JWT access (15min) + httpOnly refresh cookie (7d) with rotation, rate-limited (`@Throttle`, 5 attempts/min)
 - **RBAC**: `RolesGuard` + `@Roles(...)` decorator — reusable on any controller, matches the permission matrix in the design doc
 - **Batches module**: coordinator/admin-only upgrade/downgrade, fully audited (writes `batch_history` + `audit_log` in one transaction) — this is the real implementation of the batch A/B/C requirement
+- **Tests module**: create (coordinator), batch-scoped visibility for students, lifecycle (`draft → scheduled → live → ended`) — `schedule()` refuses to move forward until the question set is reviewed and approved
+- **Questions module** — the docx/pdf ingestion pipeline (design doc §10):
+  - `POST /tests/:testId/questions/parse-preview` — upload a .docx/.pdf, get back parsed draft questions (mammoth for docx, pdf-parse for pdf, then a heuristic regex extractor looking for `1. question / A) option / Answer: B` patterns). **Nothing is saved here** — preview only
+  - `POST /tests/:testId/questions/commit` — the coordinator's reviewed/edited final set gets persisted here; committing resets the test's `approved` flag so a re-upload always needs re-review
+  - Manual `POST`/`PUT`/`DELETE` on individual questions for hand-editing after parse
+  - Every draft question carries a `parseWarning` when the heuristic couldn't confidently find options or a marked answer — surface these prominently in the review UI, don't let a warned question slip through silently
 - **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, attendance, batch history, audit log
 
 ## Not built yet
 
-Tests/questions/attempts/violations/attendance controllers, the WebSocket gateway for live monitoring, and the question-ingestion (docx/pdf parsing) pipeline. The schema already supports all of it — next modules follow the same pattern as `batches/`.
+Attempts/violations/attendance controllers, the WebSocket gateway for live monitoring. The schema already supports all of it — next modules follow the same pattern as `batches/`.
+
+## Question parser — current limitation
+
+The extractor is a **regex heuristic**, not an LLM — it expects teachers'
+docx/pdf files to roughly follow a `1. question text / A) option / B) option
+/ Answer: B` layout. Messier formats (multi-paragraph questions, tables,
+inconsistent numbering) will parse partially or get flagged with
+`parseWarning`. This is intentional as a fast, dependency-light first pass;
+an optional LLM-assisted structuring pass (as noted in the design doc §10)
+can be added later as a second parsing strategy the coordinator can pick
+when the heuristic struggles — swap it into `QuestionExtractionService`
+without touching the controller or commit flow.
 
 ## Security notes baked in
 
