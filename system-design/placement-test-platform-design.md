@@ -10,7 +10,7 @@
 
 **Goals**
 - Weekly timed placement tests, objective (MCQ-style) scoring, instant results
-- 4 roles: Student, Teacher, Placement Coordinator, Admin — each with a distinct permission surface
+- 3 roles: Student, Placement Coordinator, Admin — each with a distinct permission surface
 - Live proctoring signals (tab switch, fullscreen exit, violation count) with auto-cutoff
 - Batch (A/B/C) management with full audit trail
 - Built to keep growing — every module is additive, not a rewrite
@@ -28,9 +28,9 @@
 ┌─────────────────┐        ┌──────────────────────────┐        ┌─────────────────┐
 │  Next.js (Vercel)│───────▶│  NestJS API (Render)      │───────▶│ PostgreSQL       │
 │  - Student UI    │  HTTPS │  - Auth/RBAC guards       │  SQL   │ (Supabase/Neon)  │
-│  - Teacher UI    │        │  - REST controllers       │        │ - source of truth│
-│  - Coordinator UI│        │  - Question ingestion     │        └─────────────────┘
-│  - Admin UI      │        │  - Scoring engine         │
+│  - Coordinator UI│        │  - REST controllers       │        │ - source of truth│
+│  - Admin UI      │        │  - Question ingestion     │        └─────────────────┘
+│                  │        │  - Scoring engine         │
 └─────────────────┘        │  - WebSocket Gateway      │        ┌─────────────────┐
         ▲                   └──────────┬───────────────┘───────▶│ Redis (Upstash)  │
         │ WSS (Socket.io)              │                        │ - live session   │
@@ -54,7 +54,7 @@ users (
   id UUID PK,
   email TEXT UNIQUE,
   password_hash TEXT,
-  role ENUM('student','teacher','coordinator','admin'),
+  role ENUM('student','coordinator','admin'),
   full_name TEXT,
   created_at TIMESTAMPTZ,
   is_active BOOLEAN DEFAULT true
@@ -66,21 +66,6 @@ students (
   batch ENUM('A','B','C'),
   section TEXT,
   current_semester INT
-)
-
-teachers (
-  user_id UUID PK REFERENCES users(id),
-  department TEXT
-)
-
-teacher_class_assignments (
-  id UUID PK,
-  teacher_id UUID REFERENCES teachers(user_id),
-  section TEXT,
-  subject TEXT,
-  day_of_week INT,
-  start_time TIME,
-  end_time TIME
 )
 ```
 
@@ -246,15 +231,14 @@ A plain browser tab cannot block these — no permission exists for it on any br
 
 ## 8. RBAC Summary
 
-| Action | Student | Teacher | Coordinator | Admin |
-|---|---|---|---|---|
-| Take test | ✅ | ❌ | ❌ | ❌ |
-| View own scores | ✅ | ❌ | ❌ | ❌ |
-| View own calendar | ❌ | ✅ | ❌ | ❌ |
-| Start/stop test, live monitor | ❌ | ❌ | ✅ | 👁 view-only |
-| Add/edit question bank + answers | ❌ | ❌ | ✅ | ❌ |
-| Batch upgrade/downgrade | ❌ | ❌ | ✅ | ✅ |
-| View all students/teachers/records | ❌ | ❌ | section-wise | ✅ all |
+| Action | Student | Coordinator | Admin |
+|---|---|---|---|
+| Take test | ✅ | ❌ | ❌ |
+| View own scores | ✅ | ❌ | ❌ |
+| Start/stop test, live monitor | ❌ | ✅ | 👁 view-only |
+| Add/edit question bank + answers | ❌ | ✅ | ❌ |
+| Batch upgrade/downgrade | ❌ | ✅ | ✅ |
+| View all students/records | ❌ | section-wise | ✅ all |
 
 Implement as NestJS Guards (`@Roles('coordinator')` decorator + a `RolesGuard`) rather than scattering `if (user.role === ...)` checks through controllers.
 
@@ -272,7 +256,6 @@ src/
   questions/           # question bank CRUD, docx/pdf ingestion
   attempts/            # attempt lifecycle, scoring
   violations/          # violation logging
-  teacher-classes/     # class assignments, calendar
   gateway/             # Socket.io gateway — test events + coordinator feed
   common/
     guards/
@@ -299,7 +282,7 @@ Most questions stay MCQ (instant scoring), but the schema supports non-MCQ from 
 1. On submit, MCQ answers are scored instantly (deterministic) → `test_attempts.mcq_score` set, attempt moves to `pending_grading` **only if** the test contains any non-MCQ questions; otherwise straight to `graded`
 2. Student sees the MCQ-portion score immediately, with a "final score pending — X descriptive answers awaiting review" note
 3. Optional: an LLM pass (Claude/Gemini) compares `free_text_answer` against `model_answer`/`rubric_notes` and writes `ai_suggested_marks` — this is a first-pass suggestion only, never auto-applied
-4. Teacher or coordinator opens a **grading queue** (filterable by test/question/batch), sees student answer + model answer + AI suggestion side by side, sets `marks_awarded` — this is a manual, auditable action (`graded_by`, `graded_at`)
+4. Coordinator opens a **grading queue** (filterable by test/question/batch), sees student answer + model answer + AI suggestion side by side, sets `marks_awarded` — this is a manual, auditable action (`graded_by`, `graded_at`)
 5. Once every non-MCQ answer in an attempt is graded, `final_score` is computed and `test_attempts.status` → `graded`, results become final for that student
 
 This keeps the "instant results" promise honest for pure-MCQ tests while giving descriptive questions real scope without pretending they can be instant.
@@ -320,7 +303,7 @@ This keeps the "instant results" promise honest for pure-MCQ tests while giving 
 
 **Phase 1 (MVP):** Auth + RBAC, question upload+review (MCQ only), single test flow (start→answer→submit→score), basic student dashboard
 **Phase 2:** Anti-cheat (tab switch, fullscreen), coordinator live view
-**Phase 3:** Batch management + audit trail, admin views, teacher calendar
+**Phase 3:** Batch management + audit trail, admin views
 **Phase 4:** Descriptive/short-answer question types + grading queue (manual + AI-assisted suggestion)
 **Phase 5:** Native Android wrapper (Capacitor) with `FLAG_SECURE` — kills screenshot/Circle to Search/screen-share on Android
 **Phase 6:** Load testing (k6/Locust simulating 1200 concurrent joins), polish, analytics/reporting exports

@@ -14,20 +14,12 @@ const prisma = new PrismaClient();
 // ../sample-data/kju-real-data-extract.xlsx for the cleaned extraction and
 // its Notes sheet for the two anomalies found in the source file.
 //
-// Two things here are NOT from the source data and are placeholders:
-// 1. `batch` (A/B/C) — this is our platform's own score-based performance
-//    batch, which doesn't exist in the source file at all (that file only
-//    has academic Section: MCA A/B/C/D, MSc DS, MSc CS — stored in
-//    `student.section`). Assigned round-robin here purely so the batch
-//    upgrade/downgrade feature and batch-scoped tests have something to
-//    demo against — replace with real batches once actual test scores exist.
-// 2. Class assignments — the source spreadsheet's weekly "training groups"
-//    (Group A, B (Batch 1), C (Batch 2), etc.) mix students from every
-//    academic section together for one training slot, which doesn't map
-//    cleanly onto this schema's one-class-one-section model. Rather than
-//    force a bad fit, this seed creates a small, honest set of class
-//    assignments against real academic sections instead of trying to
-//    reproduce the training-group structure faithfully.
+// `batch` (A/B/C) is NOT from the source data — it's this platform's own
+// score-based performance batch, which doesn't exist in the source file at
+// all (that file only has academic Section: MCA A/B/C/D, MSc DS, MSc CS —
+// stored in `student.section`). Assigned round-robin here purely so the
+// batch upgrade/downgrade feature and batch-scoped tests have something to
+// demo against — replace with real batches once actual test scores exist.
 async function main() {
   const password = await bcrypt.hash("Password123!", 12);
 
@@ -37,24 +29,6 @@ async function main() {
   });
   const admin = await prisma.user.create({
     data: { email: "r.iyer@kju.edu", passwordHash: password, role: "admin", fullName: "Ramesh Iyer" },
-  });
-  const teacherVimala = await prisma.user.create({
-    data: {
-      email: "vimala@kju.edu",
-      passwordHash: password,
-      role: "teacher",
-      fullName: "Dr Vimala",
-      teacher: { create: { department: "MCA" } },
-    },
-  });
-  const teacherVinothina = await prisma.user.create({
-    data: {
-      email: "vinothina@kju.edu",
-      passwordHash: password,
-      role: "teacher",
-      fullName: "Dr Vinothina",
-      teacher: { create: { department: "MCA" } },
-    },
   });
 
   // ===== Real student roster (315 students) — bulk-inserted for speed =====
@@ -84,14 +58,6 @@ async function main() {
   // than 315 sequential prisma.user.create() calls with nested `student.create`.
   await prisma.user.createMany({ data: userRows });
   await prisma.student.createMany({ data: studentRows });
-
-  // ===== One real class assignment against a real academic section =====
-  await prisma.teacherClassAssignment.create({
-    data: { teacherId: teacherVimala.id, section: "MCA A", subject: "Aptitude", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
-  });
-  await prisma.teacherClassAssignment.create({
-    data: { teacherId: teacherVinothina.id, section: "MCA B", subject: "Programming Fundamentals", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
-  });
 
   // ===== One live test, scoped to placeholder batch A =====
   const test = await prisma.test.create({
@@ -160,8 +126,6 @@ async function main() {
   console.log("Staff:");
   console.log("  coordinator:", coordinator.email);
   console.log("  admin:      ", admin.email);
-  console.log("  teacher:    ", teacherVimala.email, "(Aptitude, MCA A)");
-  console.log("  teacher:    ", teacherVinothina.email, "(Programming Fundamentals, MCA B)");
   console.log(`\n${roster.length} real students seeded across sections:`, sectionCounts);
   console.log("\nLog in as any student with their roll number, e.g.:", roster[0].rollNo, "/ Password123!");
   console.log("A live test is ready to take: 'Weekly Aptitude Test — Numbers & Logic' (placeholder batch A)");

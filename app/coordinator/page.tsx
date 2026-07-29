@@ -51,8 +51,12 @@ export default function CoordinatorHomePage() {
 
   async function startTest(testId: string) {
     const res = await fetch(`${API_URL}/tests/${testId}/start`, { method: "POST", headers: authHeaders() });
-    if (res.ok) await loadTests();
-    else setError("Couldn't start the test.");
+    if (res.ok) {
+      await loadTests();
+    } else {
+      const body = await res.json().catch(() => null);
+      setError(body?.message ?? "Couldn't start the test.");
+    }
   }
 
   async function stopTest(testId: string) {
@@ -82,6 +86,14 @@ export default function CoordinatorHomePage() {
             </div>
             <div className="flex items-center gap-3">
               <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} now={now} />
+              {t.status === "draft" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push(`/coordinator/tests/${t.id}/questions`)}
+                >
+                  Add questions
+                </Button>
+              )}
               {(t.status === "scheduled" || t.status === "draft") && (
                 <Button variant="secondary" onClick={() => startTest(t.id)}>
                   Start now
@@ -92,7 +104,9 @@ export default function CoordinatorHomePage() {
                   Stop test
                 </Button>
               )}
-              <Button onClick={() => router.push(`/coordinator/live/${t.id}`)}>Monitor</Button>
+              {t.status !== "draft" && (
+                <Button onClick={() => router.push(`/coordinator/live/${t.id}`)}>Monitor</Button>
+              )}
             </div>
           </Card>
         ))}

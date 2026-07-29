@@ -9,7 +9,6 @@ datasource db {
 
 enum Role {
   student
-  teacher
   coordinator
   admin
 }
@@ -63,7 +62,6 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
 
   student       Student?
-  teacher       Teacher?
   auditLogs     AuditLog[]      @relation("actor")
   batchChanges  BatchHistory[]  @relation("changedBy")
   createdTests  Test[]          @relation("createdBy")
@@ -84,29 +82,6 @@ model Student {
   batchHistory BatchHistory[]
 
   @@map("students")
-}
-
-model Teacher {
-  userId     String @id @map("user_id")
-  user       User   @relation(fields: [userId], references: [id])
-  department String
-
-  classAssignments TeacherClassAssignment[]
-
-  @@map("teachers")
-}
-
-model TeacherClassAssignment {
-  id        String  @id @default(uuid())
-  teacherId String  @map("teacher_id")
-  teacher   Teacher @relation(fields: [teacherId], references: [userId])
-  section   String
-  subject   String
-  dayOfWeek Int     @map("day_of_week")
-  startTime String  @map("start_time") // stored as "HH:MM"
-  endTime   String  @map("end_time")
-
-  @@map("teacher_class_assignments")
 }
 
 // --- Batch management (audited) ---------------------------------------

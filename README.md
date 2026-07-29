@@ -19,7 +19,7 @@ app/
   dashboard/page.tsx       — student dashboard (upcoming test, scores)
   test/[testId]/page.tsx   — live test screen: timer, anti-cheat listeners, MCQ nav
 components/
-  ui/                      — design-system primitives (Button, Card, Badge, StatCard, ProgressRing)
+  ui/                      — design-system primitives (Button, Card, Badge, StatCard)
   dashboard/               — dashboard-specific composites
   test/                    — test-taking composites (header, question card)
 tailwind.config.ts         — single source of truth for every color/type/spacing token
@@ -45,15 +45,14 @@ first.
 - **Coordinator live-monitoring screen** (`app/coordinator/live/[testId]/page.tsx`) — real Socket.io connection (`lib/socket.ts`), joins the test's room, listens for `test:event` (violation/join/submit/status-change), Start/Stop buttons call the gateway's `coordinator:test_control`. Violation-count badges follow the sage/gold/crimson thresholds from `LiveMonitoringTable.tsx`
 - **Question review/upload screen** (`app/coordinator/tests/[testId]/questions/page.tsx`) — upload docx/pdf → parsed draft renders as editable cards, `parseWarning`s surfaced as gold badges, every field (question text, options, correct-answer toggle, model answer for descriptive) editable before commit — nothing reaches the DB until "Commit" is pressed
 - **Admin dashboard** (`app/admin/page.tsx`) — read-only: batch distribution, full test list. No mutation controls anywhere on this screen, matching the RBAC matrix's "view-all except add questions/batch changes" for admin
-- **Teacher calendar** (`app/teacher/calendar/page.tsx`) — weekly grid from `GET /class-assignments/me`
 - **Results screen** (`app/results/[attemptId]/page.tsx`) — real fetch from `GET /attempts/:id/result`; shows the `pending_grading` state honestly (MCQ score visible immediately, final score withheld) rather than faking a complete number
 
 ## Not built yet (descriptive-answer grading queue UI)
 
-Same component patterns apply — reuse `Card`, `Badge`, `StatCard`,
-`ProgressRing` rather than introducing new visual language per screen. The
-Stitch reference screens/HTML for these are in the original export if you
-need the layout reference while building them out.
+Same component patterns apply — reuse `Card`, `Badge`, `StatCard` rather than
+introducing new visual language per screen. The Stitch reference screens/HTML
+for these are in the original export if you need the layout reference while
+building them out.
 
 ## Next steps
 

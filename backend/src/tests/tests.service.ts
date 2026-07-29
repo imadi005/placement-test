@@ -68,7 +68,17 @@ export class TestsService {
     return this.prisma.test.update({ where: { id }, data: { status: "scheduled" } });
   }
 
+  // Same gate as schedule() — without it, "Start now" on a draft test that
+  // was closed out before any questions were committed silently goes live
+  // with zero questions, and every student who joins hits a dead end.
   async start(id: string) {
+    const test = await this.findOne(id);
+    if (test.questions.length === 0) {
+      throw new BadRequestException("Cannot start a test with no questions");
+    }
+    if (!test.approved) {
+      throw new BadRequestException("Question set must be approved before starting");
+    }
     return this.prisma.test.update({ where: { id }, data: { status: "live" } });
   }
 

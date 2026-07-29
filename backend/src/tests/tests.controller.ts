@@ -20,7 +20,7 @@ export class TestsController {
 
   // Students see only tests scoped to their batch; staff see everything.
   @Get()
-  @Roles("student", "teacher", "coordinator", "admin")
+  @Roles("student", "coordinator", "admin")
   async list(@CurrentUser() user: { id: string; role: string }) {
     if (user.role === "student") {
       const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
@@ -31,7 +31,7 @@ export class TestsController {
   }
 
   @Get(":id")
-  @Roles("student", "teacher", "coordinator", "admin")
+  @Roles("student", "coordinator", "admin")
   findOne(@Param("id") id: string) {
     return this.testsService.findOne(id);
   }

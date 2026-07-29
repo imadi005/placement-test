@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -21,10 +21,47 @@ export default function QuestionReviewPage() {
   const testId = params.testId as string;
 
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [committed, setCommitted] = useState(false);
+
+  // Pick up an already-committed set (e.g. a draft closed out mid-flow that
+  // already has questions from a previous commit) rather than always
+  // starting from a blank slate.
+  useEffect(() => {
+    async function loadExisting() {
+      try {
+        const res = await fetch(`${API_URL}/tests/${testId}/questions`, { headers: authHeaders() });
+        if (res.ok) {
+          const existing: Array<{
+            questionText: string;
+            questionOrder: number;
+            questionType: string;
+            modelAnswer: string | null;
+            rubricNotes: string | null;
+            options: { optionText: string; isCorrect: boolean }[];
+          }> = await res.json();
+          if (existing.length > 0) {
+            setQuestions(
+              existing.map((q) => ({
+                questionText: q.questionText,
+                questionOrder: q.questionOrder,
+                questionType: q.questionType,
+                modelAnswer: q.modelAnswer,
+                rubricNotes: q.rubricNotes,
+                options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
+              }))
+            );
+          }
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadExisting();
+  }, [testId]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -113,6 +150,15 @@ export default function QuestionReviewPage() {
         return;
       }
 
+      const approveRes = await fetch(`${API_URL}/tests/${testId}/approve-questions`, {
+        method: "POST",
+        headers: authHeaders(false),
+      });
+      if (!approveRes.ok) {
+        setError("Questions saved, but couldn't mark them approved. Try again.");
+        return;
+      }
+
       setCommitted(true);
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
@@ -121,14 +167,27 @@ export default function QuestionReviewPage() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="text-body-md text-on-surface-variant">Loading…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
-      <header className="mb-6">
-        <h1 className="font-serif text-headline-md text-on-surface">Question bank review</h1>
-        <p className="mt-1 text-body-sm text-on-surface-variant">
-          Upload a .docx/.pdf question set, fix anything the parser flagged, then commit before
-          scheduling this test.
-        </p>
+      <header className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="font-serif text-headline-md text-on-surface">Question bank review</h1>
+          <p className="mt-1 text-body-sm text-on-surface-variant">
+            Upload a .docx/.pdf question set, fix anything the parser flagged, then commit before
+            scheduling this test.
+          </p>
+        </div>
+        <Button variant="ghost" onClick={() => router.push("/coordinator")}>
+          ← Back to coordinator
+        </Button>
       </header>
 
       {questions.length === 0 && (
@@ -157,10 +216,13 @@ export default function QuestionReviewPage() {
       {error && <p className="mb-4 text-body-sm text-error">{error}</p>}
 
       {committed && (
-        <Card className="mb-6 border-secondary bg-secondary-container/20 text-center">
+        <Card className="mb-6 flex items-center justify-between border-secondary bg-secondary-container/20">
           <p className="text-body-md text-on-secondary-container">
-            Question set saved. This test can now be scheduled once approved.
+            Question set saved and approved — ready to start or schedule from the coordinator list.
           </p>
+          <Button variant="secondary" onClick={() => router.push("/coordinator")}>
+            Back to coordinator
+          </Button>
         </Card>
       )}
 

@@ -43,7 +43,6 @@ export default function LoginPage() {
 
       const roleRoutes: Record<string, string> = {
         student: "/dashboard",
-        teacher: "/teacher/calendar",
         coordinator: "/coordinator",
         admin: "/admin",
       };
@@ -100,10 +99,6 @@ export default function LoginPage() {
           <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
             {isSubmitting ? "Signing in…" : "Sign in"}
           </Button>
-
-          <a href="/forgot-password" className="text-center text-body-sm text-on-surface-variant underline underline-offset-2">
-            Forgot password?
-          </a>
         </form>
       </Card>
     </main>

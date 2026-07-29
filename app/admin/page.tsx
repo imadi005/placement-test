@@ -23,7 +23,7 @@ interface TestRow {
   batchScope: string;
 }
 
-// Admin per RBAC matrix §8: view-all — teacher assignments, tests/questions —
+// Admin per RBAC matrix §8: view-all — tests/questions/batches —
 // but never a mutation control on this screen. Every fetch here hits an
 // endpoint the backend already scopes to coordinator+admin; there is no
 // admin-only write path for any of this.

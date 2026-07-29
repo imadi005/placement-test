@@ -76,7 +76,23 @@ export class AttemptsService {
       include: { options: { select: { id: true, optionText: true } } },
     });
 
-    return { attempt, questions, serverStartedAt: attempt.startedAt };
+    // On a resumed attempt (page refresh, reconnect), the client otherwise
+    // has no way to know what was already autosaved — it would render a
+    // blank test even though the student's answers are safe in the DB.
+    const existingAnswers = await this.prisma.attemptAnswer.findMany({
+      where: { attemptId: attempt.id },
+      select: { questionId: true, selectedOptionId: true, freeTextAnswer: true },
+    });
+
+    // TestAttempt has no durationMinutes of its own (that's a Test-level
+    // field) — the client's countdown needs it, so it rides along here
+    // rather than the frontend silently falling back to a hardcoded default.
+    return {
+      attempt: { ...attempt, durationMinutes: test.durationMinutes },
+      questions,
+      existingAnswers,
+      serverStartedAt: attempt.startedAt,
+    };
   }
 
   private async assertOwnership(attemptId: string, studentId: string) {
@@ -158,12 +174,14 @@ export class AttemptsService {
 
     let mcqScore = 0;
     let hasNonMcq = false;
+    const mcqAwards: { id: string; marksAwarded: number }[] = [];
 
     for (const answer of answers) {
       if (answer.question.questionType === "mcq") {
-        if (answer.selectedOption?.isCorrect) {
-          mcqScore += Number(answer.question.marks);
-        }
+        const isCorrect = Boolean(answer.selectedOption?.isCorrect);
+        const awarded = isCorrect ? Number(answer.question.marks) : 0;
+        mcqScore += awarded;
+        mcqAwards.push({ id: answer.id, marksAwarded: awarded });
       } else {
         hasNonMcq = true;
       }
@@ -171,15 +189,27 @@ export class AttemptsService {
 
     const status = reason === "violation_threshold" ? "flagged" : hasNonMcq ? "pending_grading" : "graded";
 
-    const updated = await this.prisma.testAttempt.update({
-      where: { id: attemptId },
-      data: {
-        status,
-        submittedAt: new Date(),
-        mcqScore,
-        finalScore: hasNonMcq ? null : mcqScore,
-      },
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.testAttempt.update({
+        where: { id: attemptId },
+        data: {
+          status,
+          submittedAt: new Date(),
+          mcqScore,
+          finalScore: hasNonMcq ? null : mcqScore,
+        },
+      }),
+      // Per-question marksAwarded so the results screen's breakdown agrees
+      // with the aggregate mcqScore above — previously only the aggregate
+      // was ever written, so every MCQ line item showed "0" regardless of
+      // whether it was actually correct.
+      ...mcqAwards.map((a) =>
+        this.prisma.attemptAnswer.update({
+          where: { id: a.id },
+          data: { marksAwarded: a.marksAwarded },
+        })
+      ),
+    ]);
 
     await this.redis.removeActiveStudent(attempt.testId, studentId);
     await this.redis.publishTestEvent(attempt.testId, {

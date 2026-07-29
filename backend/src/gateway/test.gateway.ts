@@ -76,16 +76,24 @@ export class TestGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { error: "Only coordinators can control test state" };
     }
 
-    const updated =
-      body.action === "start"
-        ? await this.testsService.start(body.testId)
-        : await this.testsService.stop(body.testId);
+    try {
+      const updated =
+        body.action === "start"
+          ? await this.testsService.start(body.testId)
+          : await this.testsService.stop(body.testId);
 
-    await this.redis.publishTestEvent(body.testId, {
-      type: "test_status_changed",
-      status: updated.status,
-    });
+      await this.redis.publishTestEvent(body.testId, {
+        type: "test_status_changed",
+        status: updated.status,
+      });
 
-    return { success: true, status: updated.status };
+      return { success: true, status: updated.status };
+    } catch (e) {
+      // start()/stop() throw BadRequestException/NotFoundException for
+      // invalid transitions (e.g. starting a test with no approved
+      // questions) — surface that message to the coordinator instead of
+      // letting it become an unhandled gateway exception.
+      return { error: e instanceof Error ? e.message : "Couldn't update the test." };
+    }
   }
 }

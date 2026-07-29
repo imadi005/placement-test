@@ -5,13 +5,7 @@
 -- ===== Staff =====
 INSERT INTO users (id, email, password_hash, role, full_name) VALUES
   ('11111111-0000-0000-0000-000000000001', 'priya.menon@kju.edu', :pw_hash, 'coordinator', 'Priya Menon'),
-  ('11111111-0000-0000-0000-000000000002', 'r.iyer@kju.edu', :pw_hash, 'admin', 'Ramesh Iyer'),
-  ('11111111-0000-0000-0000-000000000003', 'anitha.rao@kju.edu', :pw_hash, 'teacher', 'Anitha Rao'),
-  ('11111111-0000-0000-0000-000000000004', 'suresh.kumar@kju.edu', :pw_hash, 'teacher', 'Suresh Kumar');
-
-INSERT INTO teachers (user_id, department) VALUES
-  ('11111111-0000-0000-0000-000000000003', 'MCA'),
-  ('11111111-0000-0000-0000-000000000004', 'MCA');
+  ('11111111-0000-0000-0000-000000000002', 'r.iyer@kju.edu', :pw_hash, 'admin', 'Ramesh Iyer');
 
 -- ===== Students across all three batches =====
 INSERT INTO users (id, email, password_hash, role, full_name) VALUES
@@ -29,11 +23,6 @@ INSERT INTO students (user_id, roll_no, batch, section, current_semester) VALUES
   ('22222222-0000-0000-0000-000000000004', '25MCAB33', 'C', 'A1', 3),
   ('22222222-0000-0000-0000-000000000005', '25MCAB41', 'C', 'A1', 3),
   ('22222222-0000-0000-0000-000000000006', '25MCAB05', 'C', 'A1', 3);
-
--- ===== Class assignments (Anitha teaches Aptitude, Suresh teaches Logical Reasoning, both to section A1) =====
-INSERT INTO teacher_class_assignments (id, teacher_id, section, subject, day_of_week, start_time, end_time) VALUES
-  ('33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000003', 'A1', 'Aptitude', 2, '10:00', '11:00'),
-  ('33333333-0000-0000-0000-000000000002', '11111111-0000-0000-0000-000000000004', 'A1', 'Logical Reasoning', 4, '11:00', '12:00');
 
 -- ===== A real, live, ready-to-take test with a mixed MCQ + descriptive question set =====
 INSERT INTO tests (id, title, batch_scope, duration_minutes, scheduled_start, status, created_by, approved) VALUES

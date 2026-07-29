@@ -36,6 +36,16 @@ export default function CoordinatorLiveMonitoringPage() {
   }, [testId]);
 
   useEffect(() => {
+    async function loadTestStatus() {
+      try {
+        const res = await fetch(`${API_URL}/tests/${testId}`, { headers: authHeaders() });
+        if (res.ok) setTestStatus((await res.json()).status);
+      } catch {
+        // testStatus just stays "unknown" — the socket's test_status_changed
+        // event (or a start/stop action) will still correct it.
+      }
+    }
+    loadTestStatus();
     refreshSnapshot();
 
     const socket = getSocket();
@@ -81,10 +91,14 @@ export default function CoordinatorLiveMonitoringPage() {
           <p className="mt-1 text-body-sm text-on-surface-variant">Status: {testStatus}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => sendControl("stop")}>
-            Stop test
-          </Button>
-          <Button onClick={() => sendControl("start")}>Start test</Button>
+          {testStatus === "live" && (
+            <Button variant="secondary" onClick={() => sendControl("stop")}>
+              Stop test
+            </Button>
+          )}
+          {(testStatus === "scheduled" || testStatus === "draft") && (
+            <Button onClick={() => sendControl("start")}>Start test</Button>
+          )}
         </div>
       </header>
 
