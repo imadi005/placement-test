@@ -21,13 +21,13 @@ const prisma = new PrismaClient();
 //    `student.section`). Assigned round-robin here purely so the batch
 //    upgrade/downgrade feature and batch-scoped tests have something to
 //    demo against — replace with real batches once actual test scores exist.
-// 2. Class assignments/attendance — the source spreadsheet's weekly
-//    "training groups" (Group A, B (Batch 1), C (Batch 2), etc.) mix
-//    students from every academic section together for one training slot,
-//    which doesn't map cleanly onto this schema's one-class-one-section
-//    model. Rather than force a bad fit, this seed creates a small, honest
-//    set of class assignments against real academic sections instead of
-//    trying to reproduce the training-group structure faithfully.
+// 2. Class assignments — the source spreadsheet's weekly "training groups"
+//    (Group A, B (Batch 1), C (Batch 2), etc.) mix students from every
+//    academic section together for one training slot, which doesn't map
+//    cleanly onto this schema's one-class-one-section model. Rather than
+//    force a bad fit, this seed creates a small, honest set of class
+//    assignments against real academic sections instead of trying to
+//    reproduce the training-group structure faithfully.
 async function main() {
   const password = await bcrypt.hash("Password123!", 12);
 
@@ -85,37 +85,13 @@ async function main() {
   await prisma.user.createMany({ data: userRows });
   await prisma.student.createMany({ data: studentRows });
 
-  const byRoll = (roll: string) => {
-    const idx = roster.findIndex((s) => s.rollNo === roll);
-    return idx === -1 ? null : userRows[idx].id;
-  };
-
   // ===== One real class assignment against a real academic section =====
-  const mcaAAptitude = await prisma.teacherClassAssignment.create({
+  await prisma.teacherClassAssignment.create({
     data: { teacherId: teacherVimala.id, section: "MCA A", subject: "Aptitude", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
   });
   await prisma.teacherClassAssignment.create({
     data: { teacherId: teacherVinothina.id, section: "MCA B", subject: "Programming Fundamentals", dayOfWeek: 2, startTime: "15:40", endTime: "16:30" },
   });
-
-  // Attendance for the first 8 real MCA A students on the actual training dates from the source file
-  const mcaAStudents = roster.filter((s) => s.section === "MCA A").slice(0, 8);
-  const dates = ["2026-03-11", "2026-03-12", "2026-03-13"];
-  for (const s of mcaAStudents) {
-    const userId = byRoll(s.rollNo);
-    if (!userId) continue;
-    for (const [i, date] of dates.entries()) {
-      await prisma.attendance.create({
-        data: {
-          studentId: userId,
-          classAssignmentId: mcaAAptitude.id,
-          date: new Date(date),
-          status: i === 1 && s.rollNo.endsWith("02") ? "absent" : "present", // one deliberate absence for realism
-          markedById: teacherVimala.id,
-        },
-      });
-    }
-  }
 
   // ===== One live test, scoped to placeholder batch A =====
   const test = await prisma.test.create({

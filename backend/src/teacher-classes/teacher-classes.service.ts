@@ -34,22 +34,4 @@ export class TeacherClassesService {
     return assignment;
   }
 
-  async assertOwnedByTeacher(classAssignmentId: string, teacherId: string) {
-    const assignment = await this.findOne(classAssignmentId);
-    if (assignment.teacherId !== teacherId) {
-      throw new NotFoundException("Class assignment not found"); // don't leak existence to a non-owner
-    }
-    return assignment;
-  }
-
-  // Roster for the attendance-marking screen — every student in the
-  // assignment's section. Ownership-checked the same way marking is.
-  async getRoster(classAssignmentId: string, teacherId: string) {
-    const assignment = await this.assertOwnedByTeacher(classAssignmentId, teacherId);
-    return this.prisma.student.findMany({
-      where: { section: assignment.section },
-      include: { user: { select: { fullName: true } } },
-      orderBy: { rollNo: "asc" },
-    });
-  }
 }

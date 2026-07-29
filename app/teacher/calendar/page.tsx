@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
-import { AttendancePanel } from "@/components/teacher/AttendancePanel";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -23,7 +22,6 @@ interface ClassAssignment {
 
 export default function TeacherCalendarPage() {
   const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -38,7 +36,7 @@ export default function TeacherCalendarPage() {
       <header className="mb-6">
         <h1 className="font-serif text-headline-md text-on-surface">Your calendar</h1>
         <p className="mt-1 text-body-sm text-on-surface-variant">
-          Click a class to mark today's attendance.
+          Your weekly class schedule.
         </p>
       </header>
 
@@ -53,12 +51,7 @@ export default function TeacherCalendarPage() {
               <p className="mb-2 text-label-caps text-on-surface-variant">{label}</p>
               <div className="flex flex-col gap-2">
                 {dayAssignments.map((a) => (
-                  <Card
-                    key={a.id}
-                    interactive
-                    className="p-3"
-                    onClick={() => setSelectedId(a.id)}
-                  >
+                  <Card key={a.id} className="p-3">
                     <p className="text-body-sm font-medium text-on-surface">{a.subject}</p>
                     <p className="text-label-caps text-on-surface-variant">{a.section}</p>
                     <p className="mt-1 text-body-sm text-on-surface-variant">
@@ -74,10 +67,6 @@ export default function TeacherCalendarPage() {
           );
         })}
       </div>
-
-      {selectedId && (
-        <AttendancePanel classAssignmentId={selectedId} onClose={() => setSelectedId(null)} />
-      )}
     </main>
   );
 }

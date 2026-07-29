@@ -12,7 +12,7 @@ GitHub Personal Access Token: **not stored here** — this file is committed to 
 
 ## What this is
 
-A weekly placement-test web app for KJU (Kristu Jayanti University) — **not** related to the pre-existing `kju-placement-portal` project (that one's for marksheet verification/ATS/interview pipelines). Handles 1200 concurrent students, 4 roles (student/teacher/coordinator/admin), live proctoring signals, batch (A/B/C) management, attendance.
+A weekly placement-test web app for KJU (Kristu Jayanti University) — **not** related to the pre-existing `kju-placement-portal` project (that one's for marksheet verification/ATS/interview pipelines). Handles 1200 concurrent students, 4 roles (student/teacher/coordinator/admin), live proctoring signals, batch (A/B/C) management.
 
 Full requirements + architecture: `system-design/placement-test-platform-design.md` in the repo (schema, Redis key patterns, WebSocket events, RBAC matrix, anti-cheat honesty table, everything).
 
@@ -35,7 +35,7 @@ Full requirements + architecture: `system-design/placement-test-platform-design.
 backend/
   src/
     auth/, users/, batches/, tests/, questions/, attempts/,
-    attendance/, teacher-classes/, redis/, gateway/, prisma/
+    teacher-classes/, redis/, gateway/, prisma/
   prisma/
     schema.prisma          — full ER model
     seed.ts                — REAL seed data (see below)
@@ -86,7 +86,7 @@ Password for **every** account: `Password123!`
 2. NestJS backend: auth (JWT + roll-no-or-email login + roles), batches (audited upgrade/downgrade)
 3. Tests + Questions modules: lifecycle (draft→scheduled→live→ended), docx/pdf ingestion (mammoth/pdf-parse + heuristic regex parser), parse-preview/commit review flow
 4. Attempts module + Redis + WebSocket gateway: start/answer/violation/submit, auto-submit at 5 violations, live coordinator feed
-5. Teacher-classes + Attendance modules (ownership-checked marking)
+5. Teacher-classes module (teacher calendar, coordinator/admin class-assignment views)
 6. Coordinator live-monitoring screen, admin dashboard, teacher calendar, results screen — all wired to real data
 7. Real 315-student roster seeded (replacing earlier small demo set)
 8. **UX overhaul of the coordinator flow**: single modal for test creation (details → upload/confirm questions → Start now/Schedule), no separate confusing "Approve" step, clean ticking status badges
@@ -95,7 +95,7 @@ Password for **every** account: `Password123!`
 
 - **Login redirect** used to always send everyone to `/dashboard` regardless of role — now role-routes (student→dashboard, teacher→calendar, coordinator→/coordinator, admin→/admin)
 - **Question commit** threw 500s via Prisma's 5s interactive-transaction timeout (sequential per-question `create()` over Neon's pooler was too slow) — switched to bulk `createMany` + explicit 15s timeout on all transactions
-- **Student dashboard** was showing hardcoded placeholder data ("Alexander") — now fetches real `/users/me`, `/tests`, `/students/me/attempts`, `/students/me/attendance`
+- **Student dashboard** was showing hardcoded placeholder data ("Alexander") — now fetches real `/users/me`, `/tests`, `/students/me/attempts`
 - **Scheduled tests never auto-started** — added `TestSchedulerService` (polls every 15s, flips `scheduled`→`live` once `scheduledStart` passes)
 - **Dashboard/coordinator list didn't reflect live changes** without a manual refresh — both now poll every 5s
 - **Test-start crashed on a unique-constraint race** — React dev-mode double-invokes effects, causing duplicate `POST /attempts/start` calls; the second used to crash with an unhandled Prisma error. Now catches the race and resumes gracefully instead of crashing.

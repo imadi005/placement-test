@@ -24,12 +24,6 @@ export class TeacherClassesController {
     return this.teacherClassesService.findForTeacher(user.id);
   }
 
-  @Get(":id/roster")
-  @Roles("teacher")
-  roster(@Param("id") id: string, @CurrentUser() user: { id: string }) {
-    return this.teacherClassesService.getRoster(id, user.id);
-  }
-
   // RBAC matrix §8: coordinator — "which teacher takes which class"
   @Get()
   @Roles("coordinator", "admin")

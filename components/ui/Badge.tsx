@@ -3,7 +3,7 @@ import clsx from "clsx";
 
 // Semantic status tone — NOT a free color choice. `sage` = healthy/no
 // violations, `gold` = caution, `crimson` = needs action. Keep this mapping
-// consistent everywhere a status appears (violations, attendance, results).
+// consistent everywhere a status appears (violations, results).
 type Tone = "sage" | "gold" | "crimson" | "neutral";
 
 const toneClasses: Record<Tone, string> = {

@@ -13,7 +13,6 @@
 - 4 roles: Student, Teacher, Placement Coordinator, Admin — each with a distinct permission surface
 - Live proctoring signals (tab switch, fullscreen exit, violation count) with auto-cutoff
 - Batch (A/B/C) management with full audit trail
-- Attendance tracking tied to teacher-led placement classes
 - Built to keep growing — every module is additive, not a rewrite
 
 **Non-Goals (be upfront about these with the placement office)**
@@ -169,19 +168,6 @@ violations (
 )
 ```
 
-### Attendance
-```sql
-attendance (
-  id UUID PK,
-  student_id UUID REFERENCES students(user_id),
-  class_assignment_id UUID REFERENCES teacher_class_assignments(id),
-  date DATE,
-  status ENUM('present','absent','excused'),
-  marked_by UUID REFERENCES users(id),   -- teacher
-  UNIQUE(student_id, class_assignment_id, date)
-)
-```
-
 ---
 
 ## 4. Redis Usage
@@ -263,8 +249,8 @@ A plain browser tab cannot block these — no permission exists for it on any br
 | Action | Student | Teacher | Coordinator | Admin |
 |---|---|---|---|---|
 | Take test | ✅ | ❌ | ❌ | ❌ |
-| View own scores/attendance | ✅ | ❌ | ❌ | ❌ |
-| View own calendar, mark attendance | ❌ | ✅ | ❌ | ❌ |
+| View own scores | ✅ | ❌ | ❌ | ❌ |
+| View own calendar | ❌ | ✅ | ❌ | ❌ |
 | Start/stop test, live monitor | ❌ | ❌ | ✅ | 👁 view-only |
 | Add/edit question bank + answers | ❌ | ❌ | ✅ | ❌ |
 | Batch upgrade/downgrade | ❌ | ❌ | ✅ | ✅ |
@@ -286,7 +272,6 @@ src/
   questions/           # question bank CRUD, docx/pdf ingestion
   attempts/            # attempt lifecycle, scoring
   violations/          # violation logging
-  attendance/          # attendance CRUD
   teacher-classes/     # class assignments, calendar
   gateway/             # Socket.io gateway — test events + coordinator feed
   common/
@@ -334,7 +319,7 @@ This keeps the "instant results" promise honest for pure-MCQ tests while giving 
 ## 12. Build Phases
 
 **Phase 1 (MVP):** Auth + RBAC, question upload+review (MCQ only), single test flow (start→answer→submit→score), basic student dashboard
-**Phase 2:** Anti-cheat (tab switch, fullscreen), coordinator live view, attendance module
+**Phase 2:** Anti-cheat (tab switch, fullscreen), coordinator live view
 **Phase 3:** Batch management + audit trail, admin views, teacher calendar
 **Phase 4:** Descriptive/short-answer question types + grading queue (manual + AI-assisted suggestion)
 **Phase 5:** Native Android wrapper (Capacitor) with `FLAG_SECURE` — kills screenshot/Circle to Search/screen-share on Android

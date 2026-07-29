@@ -34,9 +34,9 @@ Real academic sections (stored in `student.section`): MCA A (64), MCA B (63), MC
 
 **Two things in the seed are placeholders, not from the source file** — documented in `prisma/seed.ts`:
 - `student.batch` (A/B/C, our platform's score-based performance batch) — the source spreadsheet has no scores, so this is assigned round-robin purely so batch-scoped tests and the upgrade/downgrade feature have something to demo against.
-- Class assignments/attendance only cover MCA A / MCA B as a small honest sample — the source spreadsheet's weekly "training groups" mix every academic section together per slot, which doesn't map cleanly onto this schema's one-class-one-section model, so it wasn't force-fit.
+- Class assignments only cover MCA A / MCA B as a small honest sample — the source spreadsheet's weekly "training groups" mix every academic section together per slot, which doesn't map cleanly onto this schema's one-class-one-section model, so it wasn't force-fit.
 
-The seed also creates: attendance for 8 real MCA A students on the real training dates from the source file (11-13 March 2026), and **one live, ready-to-take test** — "Weekly Aptitude Test — Numbers & Logic" (placeholder batch A, 1 MCQ + 1 descriptive question, already approved).
+The seed also creates **one live, ready-to-take test** — "Weekly Aptitude Test — Numbers & Logic" (placeholder batch A, 1 MCQ + 1 descriptive question, already approved).
 
 Test with:
 ```bash
@@ -72,14 +72,8 @@ Returns an `accessToken` (use as `Authorization: Bearer <token>` on subsequent r
 - **Redis service** — wraps ioredis with the exact key patterns from design doc §4 (`attempt:{id}:state`, `attempt:{id}:violations`, `test:{id}:active_students`, pub/sub channel per test) — this is the single place that knows those key shapes
 - **WebSocket gateway** (`test.gateway.ts`) — Socket.io, JWT-authenticated per message (`WsJwtGuard`, same re-fetch-user trust model as the HTTP strategy). Rooms are `test:{testId}`; the gateway relays Redis pub/sub events to the room (coordinator's live-monitoring feed) and lets a coordinator start/stop a test over `coordinator:test_control`. It deliberately does NOT duplicate answer/violation persistence — that stays in `AttemptsService` via REST, the gateway is fan-out only
 - **Teacher-classes module** — `GET /class-assignments/me` (teacher's own calendar), `GET /class-assignments` (coordinator/admin — which teacher takes which class), `POST /class-assignments` (coordinator/admin sets these up; a teacher never creates their own)
-- **Attendance module**:
-  - `POST /class-assignments/:id/attendance` — teacher marks attendance for a date; ownership is enforced server-side (`assertOwnedByTeacher` — a teacher can never mark a class assigned to someone else, regardless of what the request body claims)
-  - `GET /class-assignments/:id/attendance?date=` — teacher pulls up a date's marks to edit
-  - `GET /students/me/attendance` — student's own dashboard widget: per-class % + overall (excused absences don't count against the denominator)
-  - `GET /students/:studentId/attendance` — coordinator/admin looking up any student
-  - `GET /attendance/summary` — coordinator/admin view: attendance % per class alongside which teacher takes it
-- **Batch distribution** (`GET /batches/distribution`) and **class roster** (`GET /class-assignments/:id/roster`) — small additions backing the admin dashboard and teacher attendance-marking screens
-- **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, attendance, batch history, audit log
+- **Batch distribution** (`GET /batches/distribution`) — small addition backing the admin dashboard
+- **Prisma schema**: the complete ER model from the design doc — users, students, teachers, class assignments, tests, questions, attempts, answers, violations, batch history, audit log
 
 ## Not built yet
 

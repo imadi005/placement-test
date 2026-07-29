@@ -12,7 +12,6 @@ import { QuestionsModule } from "./questions/questions.module";
 import { AttemptsModule } from "./attempts/attempts.module";
 import { GatewayModule } from "./gateway/gateway.module";
 import { TeacherClassesModule } from "./teacher-classes/teacher-classes.module";
-import { AttendanceModule } from "./attendance/attendance.module";
 
 @Module({
   imports: [
@@ -28,7 +27,6 @@ import { AttendanceModule } from "./attendance/attendance.module";
     AttemptsModule,
     GatewayModule,
     TeacherClassesModule,
-    AttendanceModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
