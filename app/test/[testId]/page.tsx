@@ -56,7 +56,8 @@ export default function LiveTestPage() {
           headers: authHeaders(),
         });
         if (!res.ok) {
-          setLoadError("Couldn't start this test. It may not be live yet.");
+          const body = await res.json().catch(() => null);
+          setLoadError(body?.message ?? "Couldn't start this test. It may not be live yet.");
           return;
         }
         const data = await res.json();

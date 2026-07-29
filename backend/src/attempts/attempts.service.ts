@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
 import { SubmitAnswerDto, ReportViolationDto } from "./dto/attempt.dto";
@@ -34,15 +35,30 @@ export class AttemptsService {
     }
 
     if (!attempt) {
-      attempt = await this.prisma.testAttempt.create({
-        data: { testId, studentId, startedAt: new Date(), status: "in_progress" },
-      });
-      await this.redis.setAttemptState(attempt.id, {
-        testId,
-        studentId,
-        startedAt: attempt.startedAt,
-        durationMinutes: test.durationMinutes,
-      });
+      try {
+        attempt = await this.prisma.testAttempt.create({
+          data: { testId, studentId, startedAt: new Date(), status: "in_progress" },
+        });
+        await this.redis.setAttemptState(attempt.id, {
+          testId,
+          studentId,
+          startedAt: attempt.startedAt,
+          durationMinutes: test.durationMinutes,
+        });
+      } catch (err) {
+        // Two "start" calls for the same student+test can legitimately race
+        // — a double-click, a flaky-network retry, or (in dev) React Strict
+        // Mode double-invoking effects. The unique constraint is the real
+        // guard; losing this race should resume the winner's attempt, not
+        // crash with an unhandled 500.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          attempt = await this.prisma.testAttempt.findUniqueOrThrow({
+            where: { testId_studentId: { testId, studentId } },
+          });
+        } else {
+          throw err;
+        }
+      }
     }
 
     await this.redis.addActiveStudent(testId, studentId);
