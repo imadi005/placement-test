@@ -41,9 +41,19 @@ export default function CoordinatorHomePage() {
 
   useEffect(() => {
     loadTests();
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
+    const tickInterval = setInterval(() => setNow(Date.now()), 1000);
+    const refreshInterval = setInterval(loadTests, 5000);
+    return () => {
+      clearInterval(tickInterval);
+      clearInterval(refreshInterval);
+    };
   }, []);
+
+  async function startTest(testId: string) {
+    const res = await fetch(`${API_URL}/tests/${testId}/start`, { method: "POST", headers: authHeaders() });
+    if (res.ok) await loadTests();
+    else setError("Couldn't start the test.");
+  }
 
   async function stopTest(testId: string) {
     const res = await fetch(`${API_URL}/tests/${testId}/stop`, { method: "POST", headers: authHeaders() });
@@ -72,6 +82,11 @@ export default function CoordinatorHomePage() {
             </div>
             <div className="flex items-center gap-3">
               <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} now={now} />
+              {(t.status === "scheduled" || t.status === "draft") && (
+                <Button variant="secondary" onClick={() => startTest(t.id)}>
+                  Start now
+                </Button>
+              )}
               {t.status === "live" && (
                 <Button variant="secondary" onClick={() => stopTest(t.id)}>
                   Stop test
