@@ -78,6 +78,7 @@ export default function DashboardPage() {
   const firstName = me?.fullName?.split(" ")[0] ?? "";
 
   const scoreRows: ScoreRow[] = attempts.map((a) => ({
+    attemptId: a.id,
     testName: a.test.title,
     dateCompleted: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—",
     score:

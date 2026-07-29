@@ -222,11 +222,20 @@ export class AttemptsService {
     return updated;
   }
 
+  // Includes each question's options (with isCorrect) and the student's
+  // selected option — safe to reveal here since the attempt is already
+  // submitted, unlike the strip-correct-answers rule on start().
   async getResult(attemptId: string, studentId: string) {
     const attempt = await this.prisma.testAttempt.findUnique({
       where: { id: attemptId },
       include: {
-        answers: { include: { question: true } },
+        answers: {
+          include: {
+            question: { include: { options: true } },
+            selectedOption: true,
+          },
+          orderBy: { question: { questionOrder: "asc" } },
+        },
       },
     });
     if (!attempt) throw new NotFoundException("Attempt not found");
