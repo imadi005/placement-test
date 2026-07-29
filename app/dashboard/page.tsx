@@ -23,6 +23,7 @@ interface TestSummary {
 }
 interface Attempt {
   id: string;
+  testId: string;
   status: string;
   mcqScore: string | null;
   finalScore: string | null;
@@ -45,12 +46,23 @@ export default function DashboardPage() {
         ]);
 
         if (meRes.ok) setMe(await meRes.json());
+
+        const attempts: Attempt[] = attemptsRes.ok ? await attemptsRes.json() : [];
+        if (attemptsRes.ok) setAttempts(attempts);
+
         if (testsRes.ok) {
           const tests: TestSummary[] = await testsRes.json();
-          const next = tests.find((t) => t.status === "live" || t.status === "scheduled");
+          // A test the student has already submitted/finished shouldn't be
+          // offered as "upcoming" again — only an in-progress (resumable)
+          // or never-attempted test counts.
+          const finishedTestIds = new Set(
+            attempts.filter((a) => a.status !== "in_progress").map((a) => a.testId)
+          );
+          const next = tests.find(
+            (t) => (t.status === "live" || t.status === "scheduled") && !finishedTestIds.has(t.id)
+          );
           setUpcomingTest(next ?? null);
         }
-        if (attemptsRes.ok) setAttempts(await attemptsRes.json());
       } catch {
         setError("Couldn't reach the server. Is the backend running?");
       }
