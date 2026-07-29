@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CreateTestModal } from "@/components/coordinator/CreateTestModal";
 import { TestStatusBadge } from "@/components/coordinator/TestStatusBadge";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -23,6 +24,7 @@ interface TestRow {
 }
 
 export default function CoordinatorHomePage() {
+  const ready = useAuthGuard(["coordinator"]);
   const router = useRouter();
   const [tests, setTests] = useState<TestRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export default function CoordinatorHomePage() {
   }
 
   useEffect(() => {
+    if (!ready) return;
     loadTests();
     const tickInterval = setInterval(() => setNow(Date.now()), 1000);
     const refreshInterval = setInterval(loadTests, 5000);
@@ -47,7 +50,7 @@ export default function CoordinatorHomePage() {
       clearInterval(tickInterval);
       clearInterval(refreshInterval);
     };
-  }, []);
+  }, [ready]);
 
   async function startTest(testId: string) {
     const res = await fetch(`${API_URL}/tests/${testId}/start`, { method: "POST", headers: authHeaders() });
@@ -64,6 +67,8 @@ export default function CoordinatorHomePage() {
     if (res.ok) await loadTests();
     else setError("Couldn't stop the test.");
   }
+
+  if (!ready) return null;
 
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">

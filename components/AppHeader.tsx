@@ -14,8 +14,11 @@ const ROLE_HOME: Record<string, string> = {
 
 // Screens with their own full-bleed layout (auth, and the live exam itself,
 // which deliberately keeps chrome minimal to reduce distraction/exit
-// temptation during a timed, proctored test).
-const HIDDEN_ON = ["/login"];
+// temptation during a timed, proctored test). Critically, the header's own
+// "home" link must not appear on /change-password — that's a forced,
+// non-skippable step, and a nav link back to the app would let a user with
+// mustChangePassword=true route around it entirely.
+const HIDDEN_ON = ["/login", "/change-password", "/forgot-password", "/reset-password"];
 const HIDDEN_PREFIXES = ["/test/"];
 
 export function AppHeader() {

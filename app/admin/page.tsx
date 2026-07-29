@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { BatchDistributionCard } from "@/components/admin/BatchDistributionCard";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -28,11 +29,13 @@ interface TestRow {
 // endpoint the backend already scopes to coordinator+admin; there is no
 // admin-only write path for any of this.
 export default function AdminDashboardPage() {
+  const ready = useAuthGuard(["admin"]);
   const [batches, setBatches] = useState<BatchCount[]>([]);
   const [tests, setTests] = useState<TestRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
     async function load() {
       try {
         const [batchRes, testsRes] = await Promise.all([
@@ -46,9 +49,11 @@ export default function AdminDashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [ready]);
 
   const totalStudents = batches.reduce((sum, b) => sum + b.count, 0);
+
+  if (!ready) return null;
 
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">

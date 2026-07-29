@@ -53,13 +53,16 @@ enum ViolationType {
 // --- Identity & roles -------------------------------------------------
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role
-  fullName     String   @map("full_name")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  role                Role
+  fullName            String    @map("full_name")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  mustChangePassword  Boolean   @default(true) @map("must_change_password")
+  resetToken          String?   @unique @map("reset_token")
+  resetTokenExpiresAt DateTime? @map("reset_token_expires_at")
 
   student       Student?
   auditLogs     AuditLog[]      @relation("actor")

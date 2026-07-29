@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { UpcomingTestCard } from "@/components/dashboard/UpcomingTestCard";
 import { ScoreHistoryTable, ScoreRow } from "@/components/dashboard/ScoreHistoryTable";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -31,12 +32,14 @@ interface Attempt {
   test: { title: string };
 }
 export default function DashboardPage() {
+  const ready = useAuthGuard(["student"]);
   const [me, setMe] = useState<Me | null>(null);
   const [upcomingTest, setUpcomingTest] = useState<TestSummary | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
     async function load() {
       try {
         const [meRes, testsRes, attemptsRes] = await Promise.all([
@@ -73,7 +76,9 @@ export default function DashboardPage() {
     // student having to manually refresh.
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [ready]);
+
+  if (!ready) return null;
 
   const firstName = me?.fullName?.split(" ")[0] ?? "";
 

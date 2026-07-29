@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -28,6 +29,7 @@ interface AttemptResult {
 }
 
 export default function ResultsPage() {
+  const ready = useAuthGuard(["student"]);
   const params = useParams();
   const router = useRouter();
   const attemptId = params.attemptId as string;
@@ -36,6 +38,7 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
     async function load() {
       const res = await fetch(`${API_URL}/attempts/${attemptId}/result`, { headers: authHeaders() });
       if (res.ok) {
@@ -45,7 +48,9 @@ export default function ResultsPage() {
       }
     }
     load();
-  }, [attemptId]);
+  }, [ready, attemptId]);
+
+  if (!ready) return null;
 
   if (error) {
     return (

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { QuestionReviewCard, EditableQuestion } from "@/components/questions/QuestionReviewCard";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -16,6 +17,7 @@ function authHeaders(json = true) {
 }
 
 export default function QuestionReviewPage() {
+  const ready = useAuthGuard(["coordinator"]);
   const params = useParams();
   const router = useRouter();
   const testId = params.testId as string;
@@ -31,6 +33,7 @@ export default function QuestionReviewPage() {
   // already has questions from a previous commit) rather than always
   // starting from a blank slate.
   useEffect(() => {
+    if (!ready) return;
     async function loadExisting() {
       try {
         const res = await fetch(`${API_URL}/tests/${testId}/questions`, { headers: authHeaders() });
@@ -61,7 +64,7 @@ export default function QuestionReviewPage() {
       }
     }
     loadExisting();
-  }, [testId]);
+  }, [ready, testId]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -166,6 +169,8 @@ export default function QuestionReviewPage() {
       setIsCommitting(false);
     }
   }
+
+  if (!ready) return null;
 
   if (isLoading) {
     return (

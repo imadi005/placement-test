@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { TestHeader } from "@/components/test/TestHeader";
 import { QuestionCard, Option } from "@/components/test/QuestionCard";
 import { Button } from "@/components/ui/Button";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const LOW_TIME_THRESHOLD_SECONDS = 5 * 60;
@@ -31,6 +32,7 @@ function authHeaders() {
 }
 
 export default function LiveTestPage() {
+  const ready = useAuthGuard(["student"]);
   const params = useParams();
   const router = useRouter();
   const testId = params.testId as string;
@@ -51,6 +53,7 @@ export default function LiveTestPage() {
   // returns `serverStartedAt` + the test's duration — the client countdown
   // is derived from that, never from a locally-invented value.
   useEffect(() => {
+    if (!ready) return;
     async function startAttempt() {
       try {
         const res = await fetch(`${API_URL}/tests/${testId}/attempts/start`, {
@@ -93,7 +96,7 @@ export default function LiveTestPage() {
       }
     }
     startAttempt();
-  }, [testId]);
+  }, [ready, testId]);
 
   useEffect(() => {
     if (!attemptId) return;
@@ -210,6 +213,8 @@ export default function LiveTestPage() {
       router.push(`/results/${attemptId}`);
     }
   }
+
+  if (!ready) return null;
 
   if (loadError) {
     return (

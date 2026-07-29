@@ -6,6 +6,7 @@ import { getSocket } from "@/lib/socket";
 import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
 import { LiveMonitoringTable, LiveStudentRow } from "@/components/coordinator/LiveMonitoringTable";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -15,6 +16,7 @@ function authHeaders() {
 }
 
 export default function CoordinatorLiveMonitoringPage() {
+  const ready = useAuthGuard(["coordinator"]);
   const params = useParams();
   const testId = params.testId as string;
 
@@ -36,6 +38,7 @@ export default function CoordinatorLiveMonitoringPage() {
   }, [testId]);
 
   useEffect(() => {
+    if (!ready) return;
     async function loadTestStatus() {
       try {
         const res = await fetch(`${API_URL}/tests/${testId}`, { headers: authHeaders() });
@@ -66,7 +69,7 @@ export default function CoordinatorLiveMonitoringPage() {
     return () => {
       socket.off("test:event", handleEvent);
     };
-  }, [testId, refreshSnapshot]);
+  }, [ready, testId, refreshSnapshot]);
 
   function sendControl(action: "start" | "stop") {
     const socket = getSocket();
@@ -82,6 +85,8 @@ export default function CoordinatorLiveMonitoringPage() {
       }
     );
   }
+
+  if (!ready) return null;
 
   return (
     <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">

@@ -24,11 +24,26 @@ async function main() {
   const password = await bcrypt.hash("Password123!", 12);
 
   // ===== Staff (real faculty names from the schedule's "Faculty Assignments" sheet) =====
+  // mustChangePassword: false on every seeded account — these are demo
+  // logins documented in the README/HANDOFF, not real first-time
+  // provisioning, so they should never hit the forced-change screen.
   const coordinator = await prisma.user.create({
-    data: { email: "priya.menon@kju.edu", passwordHash: password, role: "coordinator", fullName: "Priya Menon" },
+    data: {
+      email: "priya.menon@kju.edu",
+      passwordHash: password,
+      role: "coordinator",
+      fullName: "Priya Menon",
+      mustChangePassword: false,
+    },
   });
   const admin = await prisma.user.create({
-    data: { email: "r.iyer@kju.edu", passwordHash: password, role: "admin", fullName: "Ramesh Iyer" },
+    data: {
+      email: "r.iyer@kju.edu",
+      passwordHash: password,
+      role: "admin",
+      fullName: "Ramesh Iyer",
+      mustChangePassword: false,
+    },
   });
 
   // ===== Real student roster (315 students) — bulk-inserted for speed =====
@@ -44,6 +59,7 @@ async function main() {
     passwordHash: password,
     role: "student" as const,
     fullName: s.name,
+    mustChangePassword: false, // demo login, see note on staff accounts above
   }));
   const studentRows = roster.map((s, i) => ({
     userId: userRows[i].id,
