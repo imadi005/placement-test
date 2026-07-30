@@ -5,3 +5,6 @@ dist/
 .env
 .env*.local
 *.log
+.vercel
+.env*
+backend/scripts/load-test-data.json

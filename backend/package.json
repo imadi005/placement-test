@@ -9,7 +9,9 @@
     "start:prod": "node dist/src/main",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "load-test:seed": "ts-node scripts/load-test-seed.ts",
+    "load-test:cleanup": "ts-node scripts/load-test-cleanup.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

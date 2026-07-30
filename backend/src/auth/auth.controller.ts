@@ -17,13 +17,17 @@ const REFRESH_COOKIE_OPTIONS = {
   path: "/auth/refresh",
 };
 
+// Per-IP, so every student behind the same campus NAT shares this budget on
+// exam day — 5 is fine for normal brute-force protection but starves a real
+// cohort logging in together. Overridable via env for that scenario and for
+// load testing, same pattern as GLOBAL_THROTTLE_LIMIT in app.module.ts.
+const AUTH_THROTTLE_LIMIT = Number(process.env.AUTH_THROTTLE_LIMIT ?? 5);
+
 @Controller("auth")
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // Throttled hard — auth endpoints are the highest-value brute-force target
-  // in the whole system.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: AUTH_THROTTLE_LIMIT, ttl: 60_000 } })
   @Post("login")
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
