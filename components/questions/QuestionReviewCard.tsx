@@ -41,9 +41,19 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
   return (
     <Card className={question.parseWarning ? "border-tertiary" : undefined}>
       <div className="mb-3 flex items-start justify-between gap-4">
-        <span className="text-label-caps text-on-surface-variant">
-          Question {question.questionOrder} · {question.questionType.toUpperCase()}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-label-caps text-on-surface-variant">Question {question.questionOrder} ·</span>
+          <select
+            value={question.questionType}
+            onChange={(e) => onChange({ ...question, questionType: e.target.value })}
+            className="rounded border border-outline-variant bg-surface-container-lowest px-1.5 py-0.5 text-label-caps text-on-surface-variant"
+          >
+            <option value="mcq">MCQ</option>
+            <option value="short_answer">SHORT ANSWER</option>
+            <option value="numeric">NUMERIC</option>
+            <option value="descriptive">DESCRIPTIVE</option>
+          </select>
+        </div>
         <button onClick={onRemove} className="text-body-sm text-error underline underline-offset-2">
           Remove
         </button>

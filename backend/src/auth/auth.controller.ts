@@ -1,8 +1,13 @@
-import { Body, Controller, HttpCode, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, HttpCode, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { Response, Request } from "express";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { ChangePasswordDto } from "./dto/change-password.dto";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { CurrentUser } from "./decorators/current-user.decorator";
 
 const REFRESH_COOKIE = "ptp_refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
@@ -30,7 +35,37 @@ export class AuthController {
     return {
       accessToken,
       user: { id: user.id, role: user.role, fullName: user.fullName },
+      mustChangePassword: user.mustChangePassword,
     };
+  }
+
+  // First-login forced change — the user is authenticated (JWT) but hasn't
+  // set a real password yet.
+  @UseGuards(JwtAuthGuard)
+  @Post("change-password")
+  @HttpCode(200)
+  async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: { id: string }) {
+    await this.authService.changePassword(user.id, dto.newPassword);
+    return { success: true };
+  }
+
+  // Always returns the same generic response regardless of whether the
+  // identifier matched an account — don't let this endpoint be used to
+  // enumerate valid roll numbers/emails.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post("forgot-password")
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.requestPasswordReset(dto.identifier);
+    return { message: "If an account exists for that identifier, a reset link has been sent." };
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post("reset-password")
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { success: true };
   }
 
   @Post("refresh")

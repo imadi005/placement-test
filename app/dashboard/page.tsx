@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { UpcomingTestCard } from "@/components/dashboard/UpcomingTestCard";
 import { ScoreHistoryTable, ScoreRow } from "@/components/dashboard/ScoreHistoryTable";
-import { ProgressRing } from "@/components/ui/ProgressRing";
-import { StatCard } from "@/components/ui/StatCard";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -25,42 +24,48 @@ interface TestSummary {
 }
 interface Attempt {
   id: string;
+  testId: string;
   status: string;
   mcqScore: string | null;
   finalScore: string | null;
   submittedAt: string | null;
   test: { title: string };
 }
-interface AttendanceSummary {
-  perClass: { classAssignmentId: string; subject: string; percentage: number }[];
-  overallPercentage: number;
-}
-
 export default function DashboardPage() {
+  const ready = useAuthGuard(["student"]);
   const [me, setMe] = useState<Me | null>(null);
   const [upcomingTest, setUpcomingTest] = useState<TestSummary | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
     async function load() {
       try {
-        const [meRes, testsRes, attemptsRes, attendanceRes] = await Promise.all([
+        const [meRes, testsRes, attemptsRes] = await Promise.all([
           fetch(`${API_URL}/users/me`, { headers: authHeaders() }),
           fetch(`${API_URL}/tests`, { headers: authHeaders() }),
           fetch(`${API_URL}/students/me/attempts`, { headers: authHeaders() }),
-          fetch(`${API_URL}/students/me/attendance`, { headers: authHeaders() }),
         ]);
 
         if (meRes.ok) setMe(await meRes.json());
+
+        const attempts: Attempt[] = attemptsRes.ok ? await attemptsRes.json() : [];
+        if (attemptsRes.ok) setAttempts(attempts);
+
         if (testsRes.ok) {
           const tests: TestSummary[] = await testsRes.json();
-          const next = tests.find((t) => t.status === "live" || t.status === "scheduled");
+          // A test the student has already submitted/finished shouldn't be
+          // offered as "upcoming" again — only an in-progress (resumable)
+          // or never-attempted test counts.
+          const finishedTestIds = new Set(
+            attempts.filter((a) => a.status !== "in_progress").map((a) => a.testId)
+          );
+          const next = tests.find(
+            (t) => (t.status === "live" || t.status === "scheduled") && !finishedTestIds.has(t.id)
+          );
           setUpcomingTest(next ?? null);
         }
-        if (attemptsRes.ok) setAttempts(await attemptsRes.json());
-        if (attendanceRes.ok) setAttendance(await attendanceRes.json());
       } catch {
         setError("Couldn't reach the server. Is the backend running?");
       }
@@ -71,11 +76,14 @@ export default function DashboardPage() {
     // student having to manually refresh.
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [ready]);
+
+  if (!ready) return null;
 
   const firstName = me?.fullName?.split(" ")[0] ?? "";
 
   const scoreRows: ScoreRow[] = attempts.map((a) => ({
+    attemptId: a.id,
     testName: a.test.title,
     dateCompleted: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—",
     score:
@@ -133,28 +141,6 @@ export default function DashboardPage() {
         ) : (
           <p className="text-body-sm text-on-surface-variant">No tests taken yet.</p>
         )}
-      </section>
-
-      <section>
-        <h2 className="mb-4 font-serif text-headline-md text-on-surface">Attendance summary</h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {attendance?.perClass.map((c) => (
-            <ProgressRing
-              key={c.classAssignmentId}
-              percent={c.percentage}
-              label={c.subject}
-              sublabel=""
-            />
-          ))}
-          {attendance && (
-            <StatCard
-              label="Overall attendance"
-              value={`${attendance.overallPercentage}%`}
-              sublabel={attendance.overallPercentage >= 75 ? "Eligible for finals" : "Below threshold"}
-            />
-          )}
-          {!attendance && <p className="text-body-sm text-on-surface-variant">No attendance recorded yet.</p>}
-        </div>
       </section>
     </main>
   );

@@ -34,10 +34,9 @@ export function UpcomingTestCard({
       <p className="text-body-sm text-on-surface-variant">
         {date} · {durationLabel}
       </p>
-      <div className="flex gap-2">
-        <Button variant="secondary">Download guidelines</Button>
-        {isLive && <Button onClick={() => (window.location.href = `/test/${testId}`)}>Start test</Button>}
-      </div>
+      {isLive && (
+        <Button onClick={() => (window.location.href = `/test/${testId}`)}>Start test</Button>
+      )}
 
       {/* Countdown only makes sense for a test that hasn't started yet — a
           live test showing "starts in 00:00" reads as broken, not accurate. */}

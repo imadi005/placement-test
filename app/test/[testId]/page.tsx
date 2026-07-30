@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { TestHeader } from "@/components/test/TestHeader";
 import { QuestionCard, Option } from "@/components/test/QuestionCard";
 import { Button } from "@/components/ui/Button";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const LOW_TIME_THRESHOLD_SECONDS = 5 * 60;
@@ -31,6 +32,7 @@ function authHeaders() {
 }
 
 export default function LiveTestPage() {
+  const ready = useAuthGuard(["student"]);
   const params = useParams();
   const router = useRouter();
   const testId = params.testId as string;
@@ -38,17 +40,20 @@ export default function LiveTestPage() {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<BackendQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
+  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> selected optionId (mcq)
+  const [freeTextAnswers, setFreeTextAnswers] = useState<Record<string, string>>({}); // questionId -> text (non-mcq)
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [violationCount, setViolationCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const durationSecondsRef = useRef(0);
+  const freeTextSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Design doc §5: attempt is created (or resumed) on join. The server
   // returns `serverStartedAt` + the test's duration — the client countdown
   // is derived from that, never from a locally-invented value.
   useEffect(() => {
+    if (!ready) return;
     async function startAttempt() {
       try {
         const res = await fetch(`${API_URL}/tests/${testId}/attempts/start`, {
@@ -64,6 +69,19 @@ export default function LiveTestPage() {
         setAttemptId(data.attempt.id);
         setQuestions(data.questions);
 
+        const existing: { questionId: string; selectedOptionId: string | null; freeTextAnswer: string | null }[] =
+          data.existingAnswers ?? [];
+        if (existing.length > 0) {
+          const restoredOptions: Record<string, string> = {};
+          const restoredFreeText: Record<string, string> = {};
+          for (const a of existing) {
+            if (a.selectedOptionId) restoredOptions[a.questionId] = a.selectedOptionId;
+            if (a.freeTextAnswer) restoredFreeText[a.questionId] = a.freeTextAnswer;
+          }
+          setAnswers(restoredOptions);
+          setFreeTextAnswers(restoredFreeText);
+        }
+
         const durationMinutes = data.attempt.durationMinutes ?? 40;
         durationSecondsRef.current = durationMinutes * 60;
         const startedAt = new Date(data.serverStartedAt).getTime();
@@ -78,7 +96,7 @@ export default function LiveTestPage() {
       }
     }
     startAttempt();
-  }, [testId]);
+  }, [ready, testId]);
 
   useEffect(() => {
     if (!attemptId) return;
@@ -152,9 +170,41 @@ export default function LiveTestPage() {
     }
   }
 
+  function setFreeTextAnswer(questionId: string, text: string) {
+    setFreeTextAnswers((prev) => ({ ...prev, [questionId]: text }));
+    if (!attemptId) return;
+
+    // Debounced — a network call per keystroke would be wasteful and race
+    // against itself; save 800ms after the student stops typing.
+    clearTimeout(freeTextSaveTimers.current[questionId]);
+    freeTextSaveTimers.current[questionId] = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ questionId, freeTextAnswer: text }),
+        });
+      } catch {
+        // A dropped autosave shouldn't block typing.
+      }
+    }, 800);
+  }
+
   async function handleSubmit(reason: "manual" | "timeout" = "manual") {
     if (!attemptId) return;
     try {
+      // Flush any free-text answers still waiting on their debounce timer so
+      // the last few keystrokes before submit aren't lost.
+      const pending = Object.entries(freeTextSaveTimers.current);
+      for (const [questionId, timer] of pending) {
+        clearTimeout(timer);
+        await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ questionId, freeTextAnswer: freeTextAnswers[questionId] ?? "" }),
+        }).catch(() => {});
+      }
+
       await fetch(`${API_URL}/attempts/${attemptId}/submit`, {
         method: "POST",
         headers: authHeaders(),
@@ -163,6 +213,8 @@ export default function LiveTestPage() {
       router.push(`/results/${attemptId}`);
     }
   }
+
+  if (!ready) return null;
 
   if (loadError) {
     return (
@@ -212,9 +264,12 @@ export default function LiveTestPage() {
         <QuestionCard
           topic={`Question ${question.questionOrder}`}
           questionText={question.questionText}
+          questionType={question.questionType}
           options={options}
           selectedOptionId={answers[question.id] ?? null}
           onSelect={(optionId) => selectOption(question.id, optionId)}
+          freeTextValue={freeTextAnswers[question.id] ?? ""}
+          onFreeTextChange={(text) => setFreeTextAnswer(question.id, text)}
         />
       </div>
 

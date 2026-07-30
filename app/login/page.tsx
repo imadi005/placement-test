@@ -41,9 +41,13 @@ export default function LoginPage() {
       sessionStorage.setItem("role", data.user.role);
       sessionStorage.setItem("fullName", data.user.fullName);
 
+      if (data.mustChangePassword) {
+        router.push("/change-password");
+        return;
+      }
+
       const roleRoutes: Record<string, string> = {
         student: "/dashboard",
-        teacher: "/teacher/calendar",
         coordinator: "/coordinator",
         admin: "/admin",
       };
@@ -101,7 +105,10 @@ export default function LoginPage() {
             {isSubmitting ? "Signing in…" : "Sign in"}
           </Button>
 
-          <a href="/forgot-password" className="text-center text-body-sm text-on-surface-variant underline underline-offset-2">
+          <a
+            href="/forgot-password"
+            className="text-center text-body-sm text-on-surface-variant underline underline-offset-2"
+          >
             Forgot password?
           </a>
         </form>

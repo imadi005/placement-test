@@ -3,13 +3,12 @@
 -- native engine. On a real machine with normal internet access, ignore this
 -- file entirely and just run: npx prisma migrate dev --name init
 
-CREATE TYPE "Role" AS ENUM ('student', 'teacher', 'coordinator', 'admin');
+CREATE TYPE "Role" AS ENUM ('student', 'coordinator', 'admin');
 CREATE TYPE "Batch" AS ENUM ('A', 'B', 'C');
 CREATE TYPE "TestStatus" AS ENUM ('draft', 'scheduled', 'live', 'ended');
 CREATE TYPE "QuestionType" AS ENUM ('mcq', 'short_answer', 'numeric', 'descriptive');
 CREATE TYPE "AttemptStatus" AS ENUM ('in_progress', 'submitted', 'auto_submitted', 'flagged', 'pending_grading', 'graded');
 CREATE TYPE "ViolationType" AS ENUM ('tab_switch', 'fullscreen_exit', 'devtools_suspected', 'copy_paste', 'window_blur');
-CREATE TYPE "AttendanceStatus" AS ENUM ('present', 'absent', 'excused');
 
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -27,21 +26,6 @@ CREATE TABLE students (
   batch "Batch" NOT NULL,
   section TEXT NOT NULL,
   current_semester INT NOT NULL
-);
-
-CREATE TABLE teachers (
-  user_id UUID PRIMARY KEY REFERENCES users(id),
-  department TEXT NOT NULL
-);
-
-CREATE TABLE teacher_class_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  teacher_id UUID NOT NULL REFERENCES teachers(user_id),
-  section TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  day_of_week INT NOT NULL,
-  start_time TEXT NOT NULL,
-  end_time TEXT NOT NULL
 );
 
 CREATE TABLE tests (
@@ -117,16 +101,6 @@ CREATE TABLE violations (
   type "ViolationType" NOT NULL,
   occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   meta JSONB
-);
-
-CREATE TABLE attendance (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id UUID NOT NULL REFERENCES students(user_id),
-  class_assignment_id UUID NOT NULL REFERENCES teacher_class_assignments(id),
-  date DATE NOT NULL,
-  status "AttendanceStatus" NOT NULL,
-  marked_by UUID NOT NULL REFERENCES users(id),
-  UNIQUE(student_id, class_assignment_id, date)
 );
 
 CREATE TABLE audit_log (
