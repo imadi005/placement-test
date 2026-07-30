@@ -16,7 +16,13 @@ import { GatewayModule } from "./gateway/gateway.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Overridable via env for load testing — a single test client hits this
+    // per-IP cap almost instantly regardless of real backend capacity,
+    // which would measure the throttle, not the server. Defaults to 100/min
+    // as before when GLOBAL_THROTTLE_LIMIT isn't set.
+    ThrottlerModule.forRoot([
+      { ttl: 60_000, limit: Number(process.env.GLOBAL_THROTTLE_LIMIT ?? 100) },
+    ]),
     PrismaModule,
     RedisModule,
     MailModule,
