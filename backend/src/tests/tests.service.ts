@@ -90,22 +90,38 @@ export class TestsService {
   // real-time updates after this come from the WebSocket gateway's
   // `test:event` relay, this is just what populates the table on page load.
   async getLiveStatus(id: string) {
-    const attempts = await this.prisma.testAttempt.findMany({
-      where: { testId: id, status: "in_progress" },
-      include: {
-        student: { include: { user: { select: { fullName: true } } } },
-        _count: { select: { violations: true } },
-      },
-    });
+    const [inProgress, submittedCount, totalEligible] = await Promise.all([
+      this.prisma.testAttempt.findMany({
+        where: { testId: id, status: "in_progress" },
+        include: {
+          student: { include: { user: { select: { fullName: true } } } },
+          _count: { select: { violations: true } },
+        },
+      }),
+      // Anything past in_progress counts as "submitted" for the summary
+      // stat — submitted/auto_submitted/flagged/pending_grading/graded all
+      // mean the student is done, regardless of whether grading is final.
+      this.prisma.testAttempt.count({ where: { testId: id, status: { not: "in_progress" } } }),
+      (async () => {
+        const test = await this.prisma.test.findUnique({ where: { id } });
+        if (!test) return 0;
+        return this.prisma.student.count({
+          where: test.batchScope === "ALL" ? {} : { batch: test.batchScope as any },
+        });
+      })(),
+    ]);
 
-    return attempts.map((a) => ({
+    const students = inProgress.map((a) => ({
       attemptId: a.id,
       studentId: a.studentId,
       studentName: a.student.user.fullName,
+      section: a.student.section,
       batch: a.student.batch,
       startedAt: a.startedAt,
       violationCount: a._count.violations,
     }));
+
+    return { students, submittedCount, totalEligible };
   }
 
   // Called once the coordinator has reviewed the parsed question bank —
