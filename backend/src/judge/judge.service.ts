@@ -46,6 +46,7 @@ export interface JudgeCaseResult {
   compileOutput: string | null;
   status: string;
   timeMs: number | null;
+  memoryKb: number | null;
 }
 
 // Trailing-whitespace/newline differences are not meaningful for a
@@ -102,6 +103,7 @@ export class JudgeService {
         compileOutput: null,
         status: "unsupported_language",
         timeMs: null,
+        memoryKb: null,
       }));
     }
 
@@ -117,6 +119,7 @@ export class JudgeService {
         compileOutput: null,
         status: "judge_unavailable",
         timeMs: null,
+        memoryKb: null,
       }));
     }
 
@@ -159,6 +162,7 @@ export class JudgeService {
           compileOutput: null,
           status: "judge_unavailable",
           timeMs: null,
+          memoryKb: null,
         };
       }
 
@@ -177,6 +181,7 @@ export class JudgeService {
         compileOutput: body.compile_output ?? null,
         status: passed ? "accepted" : statusLabel(statusId),
         timeMs: body.time ? Math.round(Number(body.time) * 1000) : null,
+        memoryKb: body.memory ? Math.round(Number(body.memory)) : null,
       };
     } catch (err) {
       this.logger.error(`Judge0 request failed for test case ${testCase.id}: ${(err as Error).message}`);
@@ -190,6 +195,7 @@ export class JudgeService {
         compileOutput: null,
         status: "judge_unavailable",
         timeMs: null,
+        memoryKb: null,
       };
     }
   }

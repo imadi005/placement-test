@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { LeaderboardTable, LeaderboardEntry } from "@/components/test/LeaderboardTable";
+import { LeaderboardTable, LeaderboardEntry, OverallWinnerBanner } from "@/components/test/LeaderboardTable";
+import { ProblemWinnersCard, ProblemWinner } from "@/components/test/ProblemWinnersCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -17,6 +18,8 @@ interface Leaderboard {
   testTitle: string;
   entries: LeaderboardEntry[];
   totalParticipants: number;
+  problemWinners: ProblemWinner[];
+  overallWinner: LeaderboardEntry | null;
 }
 
 export default function CoordinatorLeaderboardPage() {
@@ -57,6 +60,12 @@ export default function CoordinatorLeaderboardPage() {
         <p className="mb-4 rounded-md bg-error-container px-3 py-2 text-body-sm text-on-error-container">{error}</p>
       )}
 
+      {data && <OverallWinnerBanner winner={data.overallWinner} />}
+      {data && data.problemWinners.length > 0 && (
+        <div className="mb-6">
+          <ProblemWinnersCard problems={data.problemWinners} />
+        </div>
+      )}
       {data && <LeaderboardTable entries={data.entries} />}
     </main>
   );

@@ -153,8 +153,21 @@ export class TestsService {
 
     const attempts = await this.prisma.testAttempt.findMany({
       where: { testId, status: { not: "in_progress" } },
-      include: { student: { include: { user: { select: { fullName: true } } } } },
+      include: {
+        student: { include: { user: { select: { fullName: true } } } },
+        codingSubmissions: true,
+      },
     });
+
+    // Tie-break signal for the overall ranking: total time across a
+    // student's own scoring coding submissions. A student with no scoring
+    // coding submissions sorts after everyone who has one, tie-score or
+    // not — "no verified optimized code" can't outrank "some".
+    const totalCodingTimeMs = (a: (typeof attempts)[number]) => {
+      const scoring = a.codingSubmissions.filter((s) => Number(s.score) > 0 && s.execTimeMs !== null);
+      if (!scoring.length) return Infinity;
+      return scoring.reduce((sum, s) => sum + (s.execTimeMs as number), 0);
+    };
 
     const ranked = attempts
       .map((a) => ({
@@ -164,18 +177,68 @@ export class TestsService {
         batch: a.student.batch,
         section: a.student.section,
         score: a.finalScore !== null ? Number(a.finalScore) : a.mcqScore !== null ? Number(a.mcqScore) : 0,
+        totalCodingTimeMs: totalCodingTimeMs(a),
       }))
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || a.totalCodingTimeMs - b.totalCodingTimeMs)
       .map((entry, i) => ({ ...entry, rank: i + 1 }));
 
     const myEntry = requester.role === "student" ? ranked.find((r) => r.studentId === requester.id) : null;
 
+    // Per-problem "most optimized code" winners — independent of the
+    // overall ranking above. Eligibility: any submission that scored
+    // above 0 (partial credit counts, per the earlier product call);
+    // ranked by score first (a correct-but-slower solution still beats a
+    // partially-correct-but-fast one), then lowest time, then lowest
+    // memory as the final tiebreak.
+    const codingQuestions = await this.prisma.question.findMany({
+      where: { testId, questionType: "coding" },
+      orderBy: { questionOrder: "asc" },
+    });
+
+    const problemWinners = codingQuestions.map((q) => {
+      const candidates = attempts
+        .flatMap((a) => a.codingSubmissions.filter((s) => s.questionId === q.id && Number(s.score) > 0))
+        .sort((x, y) => {
+          if (Number(y.score) !== Number(x.score)) return Number(y.score) - Number(x.score);
+          const xTime = x.execTimeMs ?? Infinity;
+          const yTime = y.execTimeMs ?? Infinity;
+          if (xTime !== yTime) return xTime - yTime;
+          return (x.memoryKb ?? Infinity) - (y.memoryKb ?? Infinity);
+        });
+
+      const winnerSubmission = candidates[0];
+      if (!winnerSubmission) {
+        return { questionId: q.id, questionOrder: q.questionOrder, questionText: q.questionText, winner: null };
+      }
+      const attempt = attempts.find((a) => a.codingSubmissions.some((s) => s.id === winnerSubmission.id));
+      return {
+        questionId: q.id,
+        questionOrder: q.questionOrder,
+        questionText: q.questionText,
+        winner: attempt
+          ? {
+              studentId: attempt.studentId,
+              rollNo: attempt.student.rollNo,
+              fullName: attempt.student.user.fullName,
+              score: Number(winnerSubmission.score),
+              maxScore: Number(winnerSubmission.maxScore),
+              execTimeMs: winnerSubmission.execTimeMs,
+              memoryKb: winnerSubmission.memoryKb,
+            }
+          : null,
+      };
+    });
+
+    const publicEntries = ranked.map(({ totalCodingTimeMs, ...rest }) => rest);
+
     return {
       testTitle: test.title,
-      entries: ranked,
-      totalParticipants: ranked.length,
+      entries: publicEntries,
+      totalParticipants: publicEntries.length,
       myRank: myEntry?.rank ?? null,
       myScore: myEntry?.score ?? null,
+      problemWinners,
+      overallWinner: publicEntries[0] ?? null,
     };
   }
 }

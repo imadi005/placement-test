@@ -12,6 +12,21 @@ export interface LeaderboardEntry {
 
 const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
+export function OverallWinnerBanner({ winner }: { winner: LeaderboardEntry | null }) {
+  if (!winner) return null;
+  return (
+    <Card className="mb-4 flex items-center gap-3 bg-primary/5">
+      <span className="text-headline-sm">🏆</span>
+      <div>
+        <p className="text-body-sm text-on-surface-variant">Overall winner</p>
+        <p className="font-serif text-title-md text-on-surface">
+          {winner.fullName} <span className="text-on-surface-variant">({winner.rollNo})</span> — {winner.score} pts
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 export function LeaderboardTable({
   entries,
   highlightRank,

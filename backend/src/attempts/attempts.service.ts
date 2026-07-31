@@ -276,6 +276,15 @@ export class AttemptsService {
           ? "compile_error"
           : "wrong_answer";
 
+    // Worst-case time/memory across this submission's cases — the
+    // "most optimized code" ranking (per-problem winner) is decided on
+    // this, so it has to reflect the slowest/heaviest case actually run,
+    // not an average that could hide a near-timeout on one input.
+    const times = results.map((r) => r.timeMs).filter((t): t is number => t !== null);
+    const memories = results.map((r) => r.memoryKb).filter((m): m is number => m !== null);
+    const execTimeMs = times.length ? Math.max(...times) : null;
+    const memoryKb = memories.length ? Math.max(...memories) : null;
+
     return {
       answerId: answer.id,
       questionId: answer.questionId,
@@ -287,6 +296,8 @@ export class AttemptsService {
         score,
         maxScore,
         results: results as unknown as Prisma.InputJsonValue,
+        execTimeMs,
+        memoryKb,
       },
     };
   }

@@ -205,6 +205,12 @@ model CodingSubmission {
   score       Decimal     @default(0)
   maxScore    Decimal     @map("max_score")
   results     Json // [{ testCaseId, isSample, passed, actualOutput, stderr, status }]
+  // Worst-case (max) time/memory across this submission's test cases —
+  // the efficiency signal used to rank "most optimized" per-problem
+  // winners on the leaderboard. Null when Judge0 never returned a metric
+  // (e.g. compile error, judge unavailable).
+  execTimeMs  Int?        @map("exec_time_ms")
+  memoryKb    Int?        @map("memory_kb")
   judgedAt    DateTime    @default(now()) @map("judged_at")
 
   @@unique([attemptId, questionId])

@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { LeaderboardTable, LeaderboardEntry } from "@/components/test/LeaderboardTable";
+import { LeaderboardTable, LeaderboardEntry, OverallWinnerBanner } from "@/components/test/LeaderboardTable";
+import { ProblemWinnersCard, ProblemWinner } from "@/components/test/ProblemWinnersCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -34,6 +35,8 @@ interface Leaderboard {
   totalParticipants: number;
   myRank: number | null;
   myScore: number | null;
+  problemWinners: ProblemWinner[];
+  overallWinner: LeaderboardEntry | null;
 }
 
 export default function ResultsPage() {
@@ -120,6 +123,12 @@ export default function ResultsPage() {
 
       {showFullLeaderboard && leaderboard && (
         <div className="mb-8">
+          <OverallWinnerBanner winner={leaderboard.overallWinner} />
+          {leaderboard.problemWinners.length > 0 && (
+            <div className="mb-4">
+              <ProblemWinnersCard problems={leaderboard.problemWinners} />
+            </div>
+          )}
           <LeaderboardTable entries={leaderboard.entries} highlightRank={leaderboard.myRank} />
         </div>
       )}
