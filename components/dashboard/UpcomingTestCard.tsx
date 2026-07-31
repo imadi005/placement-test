@@ -41,7 +41,7 @@ export function UpcomingTestCard({
       {/* Countdown only makes sense for a test that hasn't started yet — a
           live test showing "starts in 00:00" reads as broken, not accurate. */}
       {!isLive && (
-        <div className="mt-2 w-full rounded-md bg-primary px-6 py-4 text-on-primary">
+        <div className="mt-2 w-full rounded-md bg-gradient-to-br from-primary to-primary-container px-6 py-4 text-on-primary shadow-soft-ink">
           <p className="text-label-caps opacity-80">Starts in</p>
           <div className="mt-1 flex items-center justify-center gap-4 font-serif text-3xl font-bold">
             <div>

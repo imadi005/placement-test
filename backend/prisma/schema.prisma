@@ -31,6 +31,7 @@ enum QuestionType {
   short_answer
   numeric
   descriptive
+  coding
 }
 
 enum AttemptStatus {
@@ -118,6 +119,7 @@ model Test {
   createdBy       User       @relation("createdBy", fields: [createdById], references: [id])
   sourceFileUrl   String?    @map("source_file_url")
   approved        Boolean    @default(false)
+  createdAt       DateTime   @default(now()) @map("created_at")
 
   questions    Question[]
   attempts     TestAttempt[]
@@ -137,10 +139,76 @@ model Question {
   modelAnswer   String?      @map("model_answer")
   rubricNotes   String?      @map("rubric_notes")
 
-  options QuestionOption[]
-  answers AttemptAnswer[]
+  options           QuestionOption[]
+  answers           AttemptAnswer[]
+  codingProblem     CodingProblem?
+  codingSubmissions CodingSubmission[]
 
   @@map("questions")
+}
+
+// --- Coding rounds (LeetCode-style) --------------------------------------
+
+model CodingProblem {
+  id     String @id @default(uuid())
+  // 1:1 with Question — a coding question's LeetCode-style config (problem
+  // statement itself stays on Question.questionText; this is everything
+  // specific to the judged/coding experience).
+  questionId String   @unique @map("question_id")
+  question   Question @relation(fields: [questionId], references: [id])
+
+  constraints     String? // free-text: input/output format, limits, examples note
+  timeLimitMs     Int      @default(2000) @map("time_limit_ms")
+  memoryLimitMb   Int      @default(256) @map("memory_limit_mb")
+  // Language ids the student may pick from — Judge0 language slugs
+  // ("c", "cpp", "java", "python"), kept as plain strings so adding a new
+  // supported language never needs a migration.
+  allowedLanguages String[] @map("allowed_languages")
+  // { [languageId]: starterSourceCode } — pre-filled into the editor when
+  // the student picks that language.
+  starterCode Json @default("{}") @map("starter_code")
+
+  testCases CodingTestCase[]
+
+  @@map("coding_problems")
+}
+
+model CodingTestCase {
+  id              String        @id @default(uuid())
+  codingProblemId String        @map("coding_problem_id")
+  codingProblem   CodingProblem @relation(fields: [codingProblemId], references: [id])
+  input           String
+  expectedOutput  String        @map("expected_output")
+  // Sample cases are shown to the student on the problem screen; hidden
+  // ones are judged but their input/output never leaves the server.
+  isSample   Boolean @default(false) @map("is_sample")
+  points     Decimal @default(1)
+  orderIndex Int     @map("order_index")
+
+  @@map("coding_test_cases")
+}
+
+// One row per graded attempt at a coding question — written when the
+// attempt is submitted (Phase 2: judged via Judge0 against every test
+// case, sample and hidden). `results` holds the per-test-case verdicts for
+// the coordinator's eyes only; the student only ever sees the aggregate
+// score, same privacy rule as hidden test cases themselves.
+model CodingSubmission {
+  id          String      @id @default(uuid())
+  attemptId   String      @map("attempt_id")
+  attempt     TestAttempt @relation(fields: [attemptId], references: [id])
+  questionId  String      @map("question_id")
+  question    Question    @relation(fields: [questionId], references: [id])
+  language    String
+  sourceCode  String      @map("source_code")
+  status      String // "accepted" | "wrong_answer" | "compile_error" | "runtime_error" | "time_limit_exceeded" | "judge_unavailable"
+  score       Decimal     @default(0)
+  maxScore    Decimal     @map("max_score")
+  results     Json // [{ testCaseId, isSample, passed, actualOutput, stderr, status }]
+  judgedAt    DateTime    @default(now()) @map("judged_at")
+
+  @@unique([attemptId, questionId])
+  @@map("coding_submissions")
 }
 
 model QuestionOption {
@@ -169,8 +237,9 @@ model TestAttempt {
   mcqScore    Decimal?      @map("mcq_score")
   finalScore  Decimal?      @map("final_score")
 
-  answers    AttemptAnswer[]
-  violations Violation[]
+  answers           AttemptAnswer[]
+  violations        Violation[]
+  codingSubmissions CodingSubmission[]
 
   @@unique([testId, studentId])
   @@map("test_attempts")
@@ -185,6 +254,11 @@ model AttemptAnswer {
   selectedOptionId String?         @map("selected_option_id")
   selectedOption   QuestionOption? @relation(fields: [selectedOptionId], references: [id])
   freeTextAnswer   String?         @map("free_text_answer")
+  // Coding questions only — the student's latest saved source + which
+  // language it's in. Judged results (phase 2) will live on their own
+  // CodingSubmission-style record; this is just the autosaved draft.
+  submittedCode    String?         @map("submitted_code")
+  codeLanguage     String?         @map("code_language")
   aiSuggestedMarks Decimal?        @map("ai_suggested_marks")
   marksAwarded     Decimal?        @map("marks_awarded")
   gradedById       String?         @map("graded_by")

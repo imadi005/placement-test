@@ -48,15 +48,30 @@ export function AppHeader() {
     router.push("/login");
   }
 
+  const initials = (fullName ?? "?")
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
-    <header className="flex items-center justify-between border-b border-outline-variant bg-surface-container-lowest px-4 py-3 md:px-gutter">
-      <a href={ROLE_HOME[role] ?? "/login"} className="font-serif text-body-lg font-semibold text-on-surface">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-outline-variant/70 bg-surface-container-lowest/80 px-4 py-3 backdrop-blur-md md:px-gutter">
+      <a
+        href={ROLE_HOME[role] ?? "/login"}
+        className="font-serif text-body-lg font-bold text-on-surface transition-opacity hover:opacity-80"
+      >
         Placement Test Portal
       </a>
-      <div className="flex items-center gap-4">
-        <span className="text-body-sm text-on-surface-variant">
-          {fullName} · <span className="capitalize">{role}</span>
-        </span>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 rounded-full border border-outline-variant bg-surface-container-low py-1 pl-1 pr-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-container text-xs font-semibold text-on-primary">
+            {initials}
+          </span>
+          <span className="text-body-sm text-on-surface-variant">
+            {fullName} · <span className="capitalize text-on-surface">{role}</span>
+          </span>
+        </div>
         <Button variant="ghost" size="md" onClick={handleLogout}>
           Log out
         </Button>

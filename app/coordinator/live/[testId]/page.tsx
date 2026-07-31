@@ -122,7 +122,7 @@ export default function CoordinatorLiveMonitoringPage() {
   const totalViolations = rows.reduce((sum, r) => sum + r.violationCount, 0);
 
   return (
-    <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
+    <main className="mx-auto max-w-container animate-fade-in-up px-4 py-8 md:px-gutter">
       <Button variant="ghost" className="mb-4" onClick={() => router.push("/coordinator")}>
         ← Back to coordinator
       </Button>
@@ -149,6 +149,11 @@ export default function CoordinatorLiveMonitoringPage() {
           )}
           {(testStatus === "scheduled" || testStatus === "draft") && (
             <Button onClick={() => sendControl("start")}>Start test</Button>
+          )}
+          {(testStatus === "live" || testStatus === "ended") && (
+            <Button variant="secondary" onClick={() => router.push(`/coordinator/tests/${testId}/analytics`)}>
+              Analytics
+            </Button>
           )}
         </div>
       </header>

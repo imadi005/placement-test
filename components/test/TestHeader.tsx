@@ -18,14 +18,14 @@ export function TestHeader({
   const progressPercent = (currentQuestion / totalQuestions) * 100;
 
   return (
-    <header className="sticky top-0 z-10 bg-background">
+    <header className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm">
       <div className="mx-auto flex max-w-test-column items-center justify-between px-4 py-4">
         <span className="text-label-caps text-on-surface-variant">
           Question {currentQuestion} of {totalQuestions}
         </span>
         <div
-          className={`flex items-center gap-2 rounded-md px-4 py-2 font-serif text-xl font-semibold ${
-            isLowTime ? "bg-error text-on-error" : "bg-primary text-on-primary"
+          className={`flex items-center gap-2 rounded-md px-4 py-2 font-serif text-xl font-semibold shadow-soft-ink transition-colors ${
+            isLowTime ? "animate-pulse bg-error text-on-error" : "bg-primary text-on-primary"
           }`}
           role="timer"
           aria-live="polite"
@@ -35,7 +35,7 @@ export function TestHeader({
       </div>
       <div className="h-1 w-full bg-surface-container-high">
         <div
-          className="h-1 bg-primary transition-all"
+          className="h-1 bg-gradient-to-r from-primary to-primary-container transition-all duration-500 ease-smooth"
           style={{ width: `${progressPercent}%` }}
         />
       </div>

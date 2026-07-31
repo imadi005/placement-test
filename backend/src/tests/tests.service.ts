@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTestDto } from "./dto/create-test.dto";
 
@@ -37,9 +37,11 @@ export class TestsService {
     return test;
   }
 
-  // Coordinator/admin listing — everything, any status
+  // Coordinator/admin listing — everything, any status, most recently
+  // created first (not scheduledStart — a just-created draft has no
+  // schedule yet and was sorting to the bottom/randomly instead of to top).
   async findAllForStaff() {
-    return this.prisma.test.findMany({ orderBy: { scheduledStart: "desc" } });
+    return this.prisma.test.findMany({ orderBy: { createdAt: "desc" } });
   }
 
   // Student listing — only scheduled/live tests scoped to their own batch (or ALL)
@@ -130,5 +132,50 @@ export class TestsService {
   // Start/Schedule action — there's no separate user-facing "Approve" step.
   async markApproved(id: string) {
     return this.prisma.test.update({ where: { id }, data: { approved: true } });
+  }
+
+  // Ranked by finalScore (falling back to the instantly-known mcqScore for
+  // anything not yet graded) across every submitted attempt — coordinators
+  // can always see it; a student can only see it once THEIR OWN attempt is
+  // submitted, so nobody can peek at standings mid-test.
+  async getLeaderboard(testId: string, requester: { id: string; role: string }) {
+    const test = await this.prisma.test.findUnique({ where: { id: testId } });
+    if (!test) throw new NotFoundException("Test not found");
+
+    if (requester.role === "student") {
+      const myAttempt = await this.prisma.testAttempt.findUnique({
+        where: { testId_studentId: { testId, studentId: requester.id } },
+      });
+      if (!myAttempt || myAttempt.status === "in_progress") {
+        throw new ForbiddenException("Submit your attempt to see the leaderboard.");
+      }
+    }
+
+    const attempts = await this.prisma.testAttempt.findMany({
+      where: { testId, status: { not: "in_progress" } },
+      include: { student: { include: { user: { select: { fullName: true } } } } },
+    });
+
+    const ranked = attempts
+      .map((a) => ({
+        studentId: a.studentId,
+        rollNo: a.student.rollNo,
+        fullName: a.student.user.fullName,
+        batch: a.student.batch,
+        section: a.student.section,
+        score: a.finalScore !== null ? Number(a.finalScore) : a.mcqScore !== null ? Number(a.mcqScore) : 0,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((entry, i) => ({ ...entry, rank: i + 1 }));
+
+    const myEntry = requester.role === "student" ? ranked.find((r) => r.studentId === requester.id) : null;
+
+    return {
+      testTitle: test.title,
+      entries: ranked,
+      totalParticipants: ranked.length,
+      myRank: myEntry?.rank ?? null,
+      myScore: myEntry?.score ?? null,
+    };
   }
 }

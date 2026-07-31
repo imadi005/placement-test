@@ -8,24 +8,35 @@ type Tone = "sage" | "gold" | "crimson" | "neutral";
 
 const toneClasses: Record<Tone, string> = {
   sage: "bg-secondary-container text-on-secondary-container",
-  gold: "bg-tertiary-container/40 text-tertiary",
+  gold: "bg-tertiary-container text-on-tertiary-container",
   crimson: "bg-error-container text-on-error-container",
   neutral: "bg-surface-container-high text-on-surface-variant",
+};
+
+const dotClasses: Record<Tone, string> = {
+  sage: "bg-secondary",
+  gold: "bg-tertiary",
+  crimson: "bg-error",
+  neutral: "bg-on-surface-variant",
 };
 
 export function Badge({
   tone = "neutral",
   className,
+  children,
   ...props
 }: HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-label-caps uppercase",
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-label-caps uppercase",
         toneClasses[tone],
         className
       )}
       {...props}
-    />
+    >
+      <span className={clsx("h-1.5 w-1.5 rounded-full", dotClasses[tone])} />
+      {children}
+    </span>
   );
 }

@@ -17,7 +17,7 @@ export function BatchDistributionCard({ data }: { data: BatchCount[] }) {
             <span className="w-6 font-serif text-body-lg font-semibold text-on-surface">{d.batch}</span>
             <div className="h-3 flex-1 rounded-full bg-surface-container-high">
               <div
-                className="h-3 rounded-full bg-primary"
+                className="h-3 rounded-full bg-gradient-to-r from-primary to-primary-container transition-all duration-500 ease-smooth"
                 style={{ width: `${(d.count / max) * 100}%` }}
               />
             </div>

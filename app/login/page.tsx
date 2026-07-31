@@ -3,7 +3,8 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { AuthCard } from "@/components/AuthCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -60,59 +61,39 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="text-label-caps text-primary">Placement Test Portal</p>
-          <h1 className="mt-2 font-serif text-headline-md text-on-surface">Welcome back</h1>
-          <p className="mt-1 text-body-sm text-on-surface-variant">
-            Sign in with your roll number to continue.
+    <AuthCard
+      title="Welcome back"
+      subtitle="Sign in with your roll number to continue."
+      footer={
+        <a
+          href="/forgot-password"
+          className="mt-6 block text-center text-body-sm text-on-surface-variant transition-colors hover:text-primary"
+        >
+          Forgot password?
+        </a>
+      }
+    >
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-label-caps text-on-surface-variant">Roll number</span>
+          <Input name="identifier" type="text" autoComplete="username" required placeholder="25MCAB58" />
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-label-caps text-on-surface-variant">Password</span>
+          <Input name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
+        </label>
+
+        {error && (
+          <p role="alert" className="text-body-sm text-error">
+            {error}
           </p>
-        </div>
+        )}
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-1">
-            <span className="text-label-caps text-on-surface-variant">Roll number</span>
-            <input
-              name="identifier"
-              type="text"
-              autoComplete="username"
-              required
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
-              placeholder="25MCAB58"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-label-caps text-on-surface-variant">Password</span>
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
-              placeholder="••••••••"
-            />
-          </label>
-
-          {error && (
-            <p role="alert" className="text-body-sm text-error">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in…" : "Sign in"}
-          </Button>
-
-          <a
-            href="/forgot-password"
-            className="text-center text-body-sm text-on-surface-variant underline underline-offset-2"
-          >
-            Forgot password?
-          </a>
-        </form>
-      </Card>
-    </main>
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }

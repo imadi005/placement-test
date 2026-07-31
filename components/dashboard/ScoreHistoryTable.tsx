@@ -16,7 +16,7 @@ export interface ScoreRow {
   testName: string;
   dateCompleted: string;
   score: string;
-  status: "graded" | "pending_grading";
+  status: "graded";
 }
 
 interface AttemptOption {
@@ -26,14 +26,10 @@ interface AttemptOption {
 }
 interface AttemptAnswer {
   id: string;
-  freeTextAnswer: string | null;
-  marksAwarded: string | null;
   selectedOption: AttemptOption | null;
   question: {
     questionText: string;
-    questionType: string;
     marks: string;
-    modelAnswer: string | null;
     options: AttemptOption[];
   };
 }
@@ -58,55 +54,25 @@ function Chevron({ open }: { open: boolean }) {
 
 function AnswerBreakdown({ answer }: { answer: AttemptAnswer }) {
   const { question } = answer;
-  const isMcq = question.questionType === "mcq";
-
-  if (isMcq) {
-    const isCorrect = Boolean(answer.selectedOption?.isCorrect);
-    const correctOption = question.options.find((o) => o.isCorrect);
-    return (
-      <div className="border-b border-outline-variant py-4 last:border-0">
-        <div className="mb-2 flex items-start justify-between gap-4">
-          <p className="text-body-md text-on-surface">{question.questionText}</p>
-          <Badge tone={isCorrect ? "sage" : "crimson"} className="shrink-0">
-            {isCorrect ? "Correct" : "Incorrect"}
-          </Badge>
-        </div>
-        <p className="text-body-sm text-on-surface-variant">
-          Your answer:{" "}
-          <span className={isCorrect ? "text-on-surface" : "font-medium text-error"}>
-            {answer.selectedOption?.optionText ?? "Not answered"}
-          </span>
-        </p>
-        {!isCorrect && correctOption && (
-          <p className="mt-1 text-body-sm text-on-surface-variant">
-            Correct answer: <span className="font-medium text-on-surface">{correctOption.optionText}</span>
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  const isGraded = answer.marksAwarded !== null;
+  const isCorrect = Boolean(answer.selectedOption?.isCorrect);
+  const correctOption = question.options.find((o) => o.isCorrect);
   return (
     <div className="border-b border-outline-variant py-4 last:border-0">
       <div className="mb-2 flex items-start justify-between gap-4">
         <p className="text-body-md text-on-surface">{question.questionText}</p>
-        {isGraded ? (
-          <Badge tone="sage" className="shrink-0">
-            {answer.marksAwarded}/{question.marks}
-          </Badge>
-        ) : (
-          <Badge tone="gold" className="shrink-0">
-            Pending grading
-          </Badge>
-        )}
+        <Badge tone={isCorrect ? "sage" : "crimson"} className="shrink-0">
+          {isCorrect ? "Correct" : "Incorrect"}
+        </Badge>
       </div>
       <p className="text-body-sm text-on-surface-variant">
-        Your answer: <span className="text-on-surface">{answer.freeTextAnswer || "Not answered"}</span>
+        Your answer:{" "}
+        <span className={isCorrect ? "text-on-surface" : "font-medium text-error"}>
+          {answer.selectedOption?.optionText ?? "Not answered"}
+        </span>
       </p>
-      {question.modelAnswer && (
+      {!isCorrect && correctOption && (
         <p className="mt-1 text-body-sm text-on-surface-variant">
-          Model answer: <span className="text-on-surface">{question.modelAnswer}</span>
+          Correct answer: <span className="font-medium text-on-surface">{correctOption.optionText}</span>
         </p>
       )}
     </div>
@@ -158,7 +124,7 @@ export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
               <Fragment key={row.attemptId}>
                 <tr
                   onClick={() => toggleRow(row.attemptId)}
-                  className="cursor-pointer border-b border-outline-variant last:border-0 hover:bg-surface-container-low"
+                  className="cursor-pointer border-b border-outline-variant transition-colors last:border-0 hover:bg-surface-container-low"
                 >
                   <td className="min-h-14 p-4 text-body-md text-on-surface">
                     <div className="flex items-center gap-2">
@@ -168,11 +134,7 @@ export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
                   </td>
                   <td className="p-4 text-body-sm text-on-surface-variant">{row.dateCompleted}</td>
                   <td className="p-4">
-                    {row.status === "pending_grading" ? (
-                      <Badge tone="gold">Pending grading</Badge>
-                    ) : (
-                      <span className="font-serif font-semibold text-on-surface">{row.score}</span>
-                    )}
+                    <span className="font-serif font-semibold text-on-surface">{row.score}</span>
                   </td>
                 </tr>
                 {isOpen && (

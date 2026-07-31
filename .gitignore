@@ -8,3 +8,5 @@ dist/
 .vercel
 .env*
 backend/scripts/load-test-data.json
+judge0/judge0.conf
+tsconfig.tsbuildinfo

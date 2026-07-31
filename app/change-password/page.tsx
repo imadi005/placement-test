@@ -3,7 +3,8 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { AuthCard } from "@/components/AuthCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -68,54 +69,45 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="text-label-caps text-primary">Placement Test Portal</p>
-          <h1 className="mt-2 font-serif text-headline-md text-on-surface">Set a new password</h1>
-          <p className="mt-1 text-body-sm text-on-surface-variant">
-            This is your first time signing in — choose a password only you know before continuing.
+    <AuthCard
+      title="Set a new password"
+      subtitle="This is your first time signing in — choose a password only you know before continuing."
+    >
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-label-caps text-on-surface-variant">New password</span>
+          <Input
+            name="newPassword"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            placeholder="••••••••"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-label-caps text-on-surface-variant">Confirm password</span>
+          <Input
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            placeholder="••••••••"
+          />
+        </label>
+
+        {error && (
+          <p role="alert" className="text-body-sm text-error">
+            {error}
           </p>
-        </div>
+        )}
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-1">
-            <span className="text-label-caps text-on-surface-variant">New password</span>
-            <input
-              name="newPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
-              placeholder="••••••••"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-label-caps text-on-surface-variant">Confirm password</span>
-            <input
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
-              placeholder="••••••••"
-            />
-          </label>
-
-          {error && (
-            <p role="alert" className="text-body-sm text-error">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save and continue"}
-          </Button>
-        </form>
-      </Card>
-    </main>
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : "Save and continue"}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }

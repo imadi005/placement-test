@@ -3,7 +3,8 @@
 import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { AuthCard } from "@/components/AuthCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -60,14 +61,11 @@ function ResetPasswordForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <div className="mb-8 text-center">
-        <p className="text-label-caps text-primary">Placement Test Portal</p>
-        <h1 className="mt-2 font-serif text-headline-md text-on-surface">Choose a new password</h1>
-      </div>
-
+    <AuthCard title="Choose a new password">
       {done ? (
-        <p className="text-body-md text-on-surface">Password updated — taking you to sign in…</p>
+        <p className="animate-fade-in text-body-md text-on-surface">
+          Password updated — taking you to sign in…
+        </p>
       ) : !token ? (
         <p className="text-body-md text-error">
           This link is missing its token.{" "}
@@ -78,28 +76,26 @@ function ResetPasswordForm() {
         </p>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1.5">
             <span className="text-label-caps text-on-surface-variant">New password</span>
-            <input
+            <Input
               name="newPassword"
               type="password"
               autoComplete="new-password"
               required
               minLength={8}
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
               placeholder="••••••••"
             />
           </label>
 
-          <label className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1.5">
             <span className="text-label-caps text-on-surface-variant">Confirm password</span>
-            <input
+            <Input
               name="confirmPassword"
               type="password"
               autoComplete="new-password"
               required
               minLength={8}
-              className="h-11 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-md text-on-surface focus:border-primary"
               placeholder="••••••••"
             />
           </label>
@@ -115,16 +111,14 @@ function ResetPasswordForm() {
           </Button>
         </form>
       )}
-    </Card>
+    </AuthCard>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Suspense fallback={null}>
-        <ResetPasswordForm />
-      </Suspense>
-    </main>
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

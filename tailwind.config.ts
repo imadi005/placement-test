@@ -1,48 +1,49 @@
 import type { Config } from "tailwindcss";
 
-// Design tokens lifted from the "Academic Precision" design system
-// (terracotta / cream / charcoal, Literata + Inter). Keep this file as the
-// single source of truth for color/type/spacing — components should never
-// hardcode hex values, only these token names.
+// Design tokens for the "Petrol & Brass" design system — deep teal-emerald
+// and warm brass on an ivory neutral base, Fraunces + Inter. Deliberately
+// avoids the indigo-on-cool-gray look every AI-generated SaaS UI defaults
+// to. Keep this file as the single source of truth for color/type/spacing —
+// components should never hardcode hex values, only these token names.
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        surface: "#fff8f5",
-        "surface-dim": "#e0d8d5",
+        surface: "#faf8f3",
+        "surface-dim": "#e8e2d3",
         "surface-container-lowest": "#ffffff",
-        "surface-container-low": "#faf2ee",
-        "surface-container": "#f4ece8",
-        "surface-container-high": "#eee7e3",
-        "on-surface": "#1e1b19",
-        "on-surface-variant": "#55433a",
-        outline: "#887368",
-        "outline-variant": "#e7e0d8",
-        primary: "#96440f",
+        "surface-container-low": "#fdfbf7",
+        "surface-container": "#f3efe4",
+        "surface-container-high": "#ece5d5",
+        "on-surface": "#1c1b17",
+        "on-surface-variant": "#5f594c",
+        outline: "#bfb5a0",
+        "outline-variant": "#e4ddc9",
+        primary: "#0f5c52",
         "on-primary": "#ffffff",
-        "primary-container": "#b55c26",
-        secondary: "#4e635a",
-        "secondary-container": "#cee5da",
-        "on-secondary-container": "#0b3b2b",
-        tertiary: "#735c00",
-        "tertiary-container": "#e9c349",
-        "on-tertiary-container": "#4f3e00",
-        error: "#ba1a1a",
+        "primary-container": "#0b453e",
+        secondary: "#4d7c3f",
+        "secondary-container": "#dbe8d3",
+        "on-secondary-container": "#1f3d1a",
+        tertiary: "#9c6b0b",
+        "tertiary-container": "#f5e3b3",
+        "on-tertiary-container": "#553a04",
+        error: "#ae2e24",
         "on-error": "#ffffff",
-        "error-container": "#ffdad6",
-        "on-error-container": "#93000a",
-        background: "#fff8f5",
-        "on-background": "#1e1b19",
+        "error-container": "#f9dedc",
+        "on-error-container": "#5c130d",
+        background: "#faf8f3",
+        "on-background": "#1c1b17",
       },
       fontFamily: {
-        serif: ["Literata", "Georgia", "serif"],
+        serif: ["Fraunces", "Georgia", "serif"],
         sans: ["Inter", "ui-sans-serif", "system-ui"],
       },
       fontSize: {
-        "display-lg": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "600" }],
-        "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "600" }],
-        "headline-md": ["24px", { lineHeight: "32px", fontWeight: "500" }],
+        "display-lg": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "700" }],
+        "headline-md": ["24px", { lineHeight: "32px", fontWeight: "600" }],
         "score-xl": ["64px", { lineHeight: "1", letterSpacing: "-0.04em", fontWeight: "700" }],
         "body-lg": ["18px", { lineHeight: "28px" }],
         "body-md": ["16px", { lineHeight: "24px" }],
@@ -50,13 +51,15 @@ const config: Config = {
         "label-caps": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
       },
       borderRadius: {
-        DEFAULT: "0.5rem",
-        md: "0.75rem",
-        lg: "1rem",
-        xl: "1.5rem",
+        DEFAULT: "0.625rem",
+        md: "0.875rem",
+        lg: "1.25rem",
+        xl: "1.75rem",
       },
       boxShadow: {
-        "soft-ink": "0 4px 12px rgba(28, 25, 23, 0.05)",
+        "soft-ink": "0 1px 2px rgba(28, 27, 23, 0.05), 0 12px 28px -8px rgba(15, 92, 82, 0.18)",
+        "soft-ink-lg": "0 4px 8px rgba(28, 27, 23, 0.05), 0 24px 48px -12px rgba(15, 92, 82, 0.24)",
+        glow: "0 0 0 4px rgba(15, 92, 82, 0.14)",
       },
       spacing: {
         "stack-sm": "8px",
@@ -67,6 +70,9 @@ const config: Config = {
       maxWidth: {
         container: "1120px",
         "test-column": "720px",
+      },
+      transitionTimingFunction: {
+        smooth: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },

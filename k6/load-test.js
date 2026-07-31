@@ -10,6 +10,11 @@ import { SharedArray } from "k6/data";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:4000";
 const PASSWORD = __ENV.LOAD_TEST_PASSWORD || "LoadTest123!";
+// Spreads each VU's start across this many seconds instead of everyone
+// hitting login in the same instant — 0 (default) keeps the instant-spike
+// behavior. Set e.g. RAMP_SECONDS=60 to simulate students trickling in
+// during a launch window rather than a single-millisecond thundering herd.
+const RAMP_SECONDS = Number(__ENV.RAMP_SECONDS || 0);
 
 const fixture = new SharedArray("students", function () {
   return JSON.parse(open("../backend/scripts/load-test-data.json")).students;
@@ -32,6 +37,10 @@ export const options = {
 
 export default function () {
   const student = fixture[(__VU - 1) % fixture.length];
+
+  if (RAMP_SECONDS > 0) {
+    sleep(((__VU - 1) / fixture.length) * RAMP_SECONDS);
+  }
 
   const loginRes = http.post(
     `${BASE_URL}/auth/login`,

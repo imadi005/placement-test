@@ -25,9 +25,9 @@ function initials(name: string) {
 
 function StudentRow({ row }: { row: LiveStudentRow }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-outline-variant px-4 py-3 last:border-0">
+    <div className="flex items-center justify-between gap-4 border-b border-outline-variant px-4 py-3 transition-colors last:border-0 hover:bg-surface-container-low">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container-high font-serif text-label-caps text-on-surface-variant">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container font-serif text-label-caps text-on-primary">
           {initials(row.studentName)}
         </span>
         <span className="truncate text-body-md text-on-surface">{row.studentName}</span>
@@ -73,7 +73,7 @@ export function LiveMonitoringTable({ rows }: { rows: LiveStudentRow[] }) {
         const batches = [...byBatch.entries()].sort(([a], [b]) => a.localeCompare(b));
 
         return (
-          <div key={section} className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest">
+          <div key={section} className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-soft-ink">
             <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container-low px-4 py-3">
               <h3 className="font-serif text-body-lg font-semibold text-on-surface">{section}</h3>
               <div className="flex items-center gap-2">

@@ -56,7 +56,7 @@ export default function AdminDashboardPage() {
   if (!ready) return null;
 
   return (
-    <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
+    <main className="mx-auto max-w-container animate-fade-in-up px-4 py-8 md:px-gutter">
       <header className="mb-6">
         <h1 className="font-serif text-headline-md text-on-surface">Admin overview</h1>
         <p className="mt-1 text-body-sm text-on-surface-variant">
@@ -64,7 +64,9 @@ export default function AdminDashboardPage() {
         </p>
       </header>
 
-      {error && <p className="mb-4 text-body-sm text-error">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-md bg-error-container px-3 py-2 text-body-sm text-on-error-container">{error}</p>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">
         <StatCard label="Total students" value={String(totalStudents)} />
@@ -76,10 +78,10 @@ export default function AdminDashboardPage() {
       </div>
 
       <Card className="p-0">
-        <p className="p-4 text-label-caps text-on-surface-variant">All tests</p>
+        <p className="border-b border-outline-variant p-4 text-label-caps text-on-surface-variant">All tests</p>
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-outline-variant">
+            <tr className="border-b border-outline-variant bg-surface-container-low">
               <th className="p-4 text-label-caps text-on-surface-variant">Title</th>
               <th className="p-4 text-label-caps text-on-surface-variant">Batch scope</th>
               <th className="p-4 text-label-caps text-on-surface-variant">Status</th>
@@ -87,7 +89,10 @@ export default function AdminDashboardPage() {
           </thead>
           <tbody>
             {tests.map((t) => (
-              <tr key={t.id} className="border-b border-outline-variant last:border-0">
+              <tr
+                key={t.id}
+                className="border-b border-outline-variant transition-colors last:border-0 hover:bg-surface-container-low"
+              >
                 <td className="p-4 text-body-md text-on-surface">{t.title}</td>
                 <td className="p-4 text-body-sm text-on-surface-variant">{t.batchScope}</td>
                 <td className="p-4 text-body-sm text-on-surface-variant">{t.status}</td>
