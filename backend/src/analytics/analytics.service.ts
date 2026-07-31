@@ -75,7 +75,15 @@ export class AnalyticsService {
       lowScore: scores.length ? Math.min(...scores) : 0,
       maxPossibleScore: maxScore,
       avgViolations: avg(attempts.map((a) => a.violations.length)),
+      // "flagged" only means "crossed the 5-violation auto-submit
+      // threshold" — a student can rack up real violations (tab
+      // switches, fullscreen exits) without ever tripping that, so this
+      // alone reading 0 was misleading coordinators into thinking nothing
+      // happened. studentsWithViolations is the "did anything happen at
+      // all" glance-metric; the per-student table still shows the exact
+      // count and the flagged badge for whoever did cross the threshold.
       flaggedCount: submitted.filter((a) => a.status === "flagged").length,
+      studentsWithViolations: attempts.filter((a) => a.violations.length > 0).length,
     };
 
     const aggregateGroup = <K extends string>(map: Map<K, typeof submitted>, keyName: string) =>
@@ -208,7 +216,8 @@ export class AnalyticsService {
       { metric: "Total submitted", value: data.overview.totalSubmitted },
       { metric: "Still in progress", value: data.overview.inProgressCount },
       { metric: "Pending grading", value: data.overview.pendingGradingCount },
-      { metric: "Flagged (violations)", value: data.overview.flaggedCount },
+      { metric: "Students with violations", value: data.overview.studentsWithViolations },
+      { metric: "Auto-submitted (5+ violations)", value: data.overview.flaggedCount },
       { metric: "Completion rate", value: pct(data.overview.completionRate) },
       { metric: "Average score", value: data.overview.avgScore.toFixed(2) },
       { metric: "Median score", value: data.overview.medianScore.toFixed(2) },

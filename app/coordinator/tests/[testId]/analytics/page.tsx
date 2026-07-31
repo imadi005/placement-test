@@ -74,6 +74,7 @@ interface Analytics {
     maxPossibleScore: number;
     avgViolations: number;
     flaggedCount: number;
+    studentsWithViolations: number;
   };
   byBatch: GroupStat[];
   bySection: GroupStat[];
@@ -212,9 +213,10 @@ export default function TestAnalyticsPage() {
         <StatCard label="Median score" value={overview.medianScore.toFixed(1)} />
         <StatCard label="High / Low" value={`${overview.highScore} / ${overview.lowScore}`} />
         <StatCard
-          label="Flagged for violations"
-          value={String(overview.flaggedCount)}
-          valueClassName={overview.flaggedCount > 0 ? "text-error" : undefined}
+          label="Students with violations"
+          value={String(overview.studentsWithViolations)}
+          valueClassName={overview.studentsWithViolations > 0 ? "text-error" : undefined}
+          sublabel={overview.flaggedCount > 0 ? `${overview.flaggedCount} auto-submitted (5+ violations)` : undefined}
         />
       </div>
 
