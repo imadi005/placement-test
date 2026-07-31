@@ -12,6 +12,7 @@ import { TestsModule } from "./tests/tests.module";
 import { QuestionsModule } from "./questions/questions.module";
 import { AttemptsModule } from "./attempts/attempts.module";
 import { GatewayModule } from "./gateway/gateway.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { GatewayModule } from "./gateway/gateway.module";
     QuestionsModule,
     AttemptsModule,
     GatewayModule,
+    AnalyticsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

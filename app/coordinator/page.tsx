@@ -71,7 +71,7 @@ export default function CoordinatorHomePage() {
   if (!ready) return null;
 
   return (
-    <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
+    <main className="mx-auto max-w-container animate-fade-in-up px-4 py-8 md:px-gutter">
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-serif text-headline-md text-on-surface">Coordinator</h1>
@@ -80,11 +80,13 @@ export default function CoordinatorHomePage() {
         <Button onClick={() => setShowModal(true)}>+ New test</Button>
       </header>
 
-      {error && <p className="mb-4 text-body-sm text-error">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-md bg-error-container px-3 py-2 text-body-sm text-on-error-container">{error}</p>
+      )}
 
       <div className="flex flex-col gap-3">
         {tests.map((t) => (
-          <Card key={t.id} className="flex items-center justify-between">
+          <Card key={t.id} className="flex items-center justify-between transition-colors hover:border-outline">
             <div>
               <p className="text-body-md font-medium text-on-surface">{t.title}</p>
               <p className="text-body-sm text-on-surface-variant">Batch scope: {t.batchScope}</p>
@@ -111,6 +113,22 @@ export default function CoordinatorHomePage() {
               )}
               {t.status !== "draft" && (
                 <Button onClick={() => router.push(`/coordinator/live/${t.id}`)}>Monitor</Button>
+              )}
+              {(t.status === "live" || t.status === "ended") && (
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push(`/coordinator/tests/${t.id}/analytics`)}
+                >
+                  Analytics
+                </Button>
+              )}
+              {(t.status === "live" || t.status === "ended") && (
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push(`/coordinator/tests/${t.id}/leaderboard`)}
+                >
+                  Leaderboard
+                </Button>
               )}
             </div>
           </Card>
