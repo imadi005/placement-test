@@ -5,8 +5,11 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
+  IsObject,
   IsOptional,
   IsString,
+  Min,
   ValidateNested,
 } from "class-validator";
 
@@ -18,6 +21,53 @@ export class ReviewedOptionDto {
   isCorrect!: boolean;
 }
 
+export class CodingTestCaseDto {
+  @IsString()
+  input!: string;
+
+  @IsString()
+  expectedOutput!: string;
+
+  @IsBoolean()
+  isSample!: boolean;
+
+  @IsNumber()
+  @Min(0)
+  points!: number;
+}
+
+// Everything specific to a "coding" question — the problem statement itself
+// stays on ReviewedQuestionDto.questionText, same as every other type.
+export class CodingProblemDto {
+  @IsOptional()
+  @IsString()
+  constraints?: string;
+
+  @IsInt()
+  @Min(100)
+  timeLimitMs!: number;
+
+  @IsInt()
+  @Min(16)
+  memoryLimitMb!: number;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn(["c", "cpp", "java", "python"], { each: true })
+  allowedLanguages!: string[];
+
+  // { [languageId]: starterSourceCode }
+  @IsOptional()
+  @IsObject()
+  starterCode?: Record<string, string>;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CodingTestCaseDto)
+  testCases!: CodingTestCaseDto[];
+}
+
 export class ReviewedQuestionDto {
   @IsString()
   questionText!: string;
@@ -25,21 +75,18 @@ export class ReviewedQuestionDto {
   @IsInt()
   questionOrder!: number;
 
-  @IsIn(["mcq", "short_answer", "numeric", "descriptive"])
+  @IsIn(["mcq", "coding"])
   questionType!: string;
-
-  @IsOptional()
-  @IsString()
-  modelAnswer?: string;
-
-  @IsOptional()
-  @IsString()
-  rubricNotes?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReviewedOptionDto)
   options!: ReviewedOptionDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CodingProblemDto)
+  codingProblem?: CodingProblemDto;
 }
 
 // The payload the coordinator's review screen submits after editing the

@@ -9,7 +9,7 @@ export class UpsertQuestionDto {
   @IsInt()
   questionOrder!: number;
 
-  @IsIn(["mcq", "short_answer", "numeric", "descriptive"])
+  @IsIn(["mcq"])
   questionType!: string;
 
   @IsOptional()

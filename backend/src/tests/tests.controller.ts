@@ -42,6 +42,12 @@ export class TestsController {
     return this.testsService.getLiveStatus(id);
   }
 
+  @Get(":id/leaderboard")
+  @Roles("student", "coordinator", "admin")
+  leaderboard(@Param("id") id: string, @CurrentUser() user: { id: string; role: string }) {
+    return this.testsService.getLeaderboard(id, user);
+  }
+
   @Patch(":id")
   @Roles("coordinator")
   update(@Param("id") id: string, @Body() body: { scheduledStart: string }) {

@@ -1,0 +1,24 @@
+# Copy this file to judge0.conf and fill in real secrets before running
+# `docker-compose up -d`. Never commit the real judge0.conf.
+
+# --- Postgres ---
+POSTGRES_HOST=db
+POSTGRES_DB=judge0
+POSTGRES_USER=judge0
+POSTGRES_PASSWORD=change-this-password
+
+# --- Redis ---
+REDIS_HOST=redis
+REDIS_PASSWORD=change-this-password
+
+# --- Server ---
+# Set to a real random secret — used to sign internal tokens.
+RAILS_MAX_QUEUE_SIZE=100
+MAX_QUEUE_SIZE=100
+ENABLE_WAIT_RESULT=true
+
+# Since this backend runs on Render (no static outbound IP on the
+# free/starter plan), the security group can't be locked to "just Render's
+# IP" — set this instead. Generate with `openssl rand -hex 32`, then set
+# the same value as JUDGE0_AUTH_TOKEN in the backend's env.
+AUTHN_TOKEN=generate-with-openssl-rand--hex-32

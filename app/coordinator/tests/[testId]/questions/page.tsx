@@ -42,9 +42,15 @@ export default function QuestionReviewPage() {
             questionText: string;
             questionOrder: number;
             questionType: string;
-            modelAnswer: string | null;
-            rubricNotes: string | null;
             options: { optionText: string; isCorrect: boolean }[];
+            codingProblem: {
+              constraints: string | null;
+              timeLimitMs: number;
+              memoryLimitMb: number;
+              allowedLanguages: string[];
+              starterCode: Record<string, string>;
+              testCases: { input: string; expectedOutput: string; isSample: boolean; points: string }[];
+            } | null;
           }> = await res.json();
           if (existing.length > 0) {
             setQuestions(
@@ -52,9 +58,22 @@ export default function QuestionReviewPage() {
                 questionText: q.questionText,
                 questionOrder: q.questionOrder,
                 questionType: q.questionType,
-                modelAnswer: q.modelAnswer,
-                rubricNotes: q.rubricNotes,
                 options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
+                codingProblem: q.codingProblem
+                  ? {
+                      constraints: q.codingProblem.constraints ?? "",
+                      timeLimitMs: q.codingProblem.timeLimitMs,
+                      memoryLimitMb: q.codingProblem.memoryLimitMb,
+                      allowedLanguages: q.codingProblem.allowedLanguages,
+                      starterCode: q.codingProblem.starterCode,
+                      testCases: q.codingProblem.testCases.map((tc) => ({
+                        input: tc.input,
+                        expectedOutput: tc.expectedOutput,
+                        isSample: tc.isSample,
+                        points: Number(tc.points),
+                      })),
+                    }
+                  : undefined,
               }))
             );
           }
@@ -181,7 +200,7 @@ export default function QuestionReviewPage() {
   }
 
   return (
-    <main className="mx-auto max-w-container px-4 py-8 md:px-gutter">
+    <main className="mx-auto max-w-container animate-fade-in-up px-4 py-8 md:px-gutter">
       <header className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="font-serif text-headline-md text-on-surface">Question bank review</h1>
@@ -200,13 +219,13 @@ export default function QuestionReviewPage() {
           <label className="cursor-pointer">
             <input
               type="file"
-              accept=".docx,.pdf"
+              accept=".docx,.pdf,.md,.txt"
               onChange={handleFileChange}
               className="hidden"
               disabled={isUploading}
             />
             <span className="text-body-md text-primary underline underline-offset-2">
-              {isUploading ? "Parsing…" : "Choose a .docx or .pdf file"}
+              {isUploading ? "Parsing…" : "Choose a .docx, .pdf, .md, or .txt file"}
             </span>
           </label>
           <p className="mt-2 text-body-sm text-on-surface-variant">

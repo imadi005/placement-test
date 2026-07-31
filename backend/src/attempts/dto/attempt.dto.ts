@@ -11,6 +11,22 @@ export class SubmitAnswerDto {
   @IsOptional()
   @IsString()
   freeTextAnswer?: string; // for short_answer/numeric/descriptive
+
+  @IsOptional()
+  @IsString()
+  submittedCode?: string; // for coding questions — the editor's current source
+
+  @IsOptional()
+  @IsIn(["c", "cpp", "java", "python"])
+  codeLanguage?: string; // for coding questions — which language submittedCode is in
+}
+
+export class RunCodeDto {
+  @IsString()
+  sourceCode!: string;
+
+  @IsIn(["c", "cpp", "java", "python"])
+  language!: string;
 }
 
 export class ReportViolationDto {

@@ -4,7 +4,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { AttemptsService } from "./attempts.service";
-import { ReportViolationDto, SubmitAnswerDto } from "./dto/attempt.dto";
+import { ReportViolationDto, RunCodeDto, SubmitAnswerDto } from "./dto/attempt.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -24,6 +24,16 @@ export class AttemptsController {
     @CurrentUser() user: { id: string }
   ) {
     return this.attemptsService.saveAnswer(attemptId, user.id, dto);
+  }
+
+  @Post("attempts/:attemptId/questions/:questionId/run")
+  runCode(
+    @Param("attemptId") attemptId: string,
+    @Param("questionId") questionId: string,
+    @Body() dto: RunCodeDto,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.attemptsService.runCode(attemptId, user.id, questionId, dto);
   }
 
   @Post("attempts/:attemptId/violations")

@@ -4,14 +4,33 @@ export interface DraftOption {
   isCorrect: boolean;
 }
 
+export interface DraftCodingTestCase {
+  input: string;
+  expectedOutput: string;
+  isSample: boolean;
+  points: number;
+}
+
+export interface DraftCodingProblem {
+  constraints: string | null;
+  timeLimitMs: number;
+  memoryLimitMb: number;
+  allowedLanguages: string[];
+  starterCode: Record<string, string>;
+  testCases: DraftCodingTestCase[];
+}
+
 export interface DraftQuestion {
   questionText: string;
   questionOrder: number;
-  questionType: "mcq" | "descriptive";
+  questionType: "mcq" | "descriptive" | "coding";
   options: DraftOption[];
   // Populated only for descriptive questions with no detected options —
   // coordinator fills this in during review if the source doc didn't have it.
   modelAnswer?: string | null;
+  // Coding questions only — everything the CodingProblemEditor needs,
+  // pre-filled straight from the uploaded document.
+  codingProblem?: DraftCodingProblem;
   // Surfaced to the reviewer so a bad parse is obvious at a glance rather
   // than silently accepted — never auto-publish a question flagged here.
   parseWarning?: string | null;

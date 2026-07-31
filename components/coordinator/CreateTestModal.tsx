@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { QuestionReviewCard, EditableQuestion } from "@/components/questions/QuestionReviewCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -180,37 +182,50 @@ export function CreateTestModal({ onClose, onDone }: Props) {
 
   const canSubmit = questions.length > 0;
 
-  return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-on-surface/40 px-4 py-8">
-      <div className="w-full max-w-2xl rounded-lg border border-outline-variant bg-surface-container-lowest p-6 shadow-soft-ink">
-        <div className="mb-6 flex items-center justify-between">
+  // Portaled to document.body — a `fixed` element inside an ancestor with
+  // any transform (e.g. the page's fade-in-up entrance animation) gets
+  // trapped relative to that ancestor instead of the viewport, which used
+  // to leave the app header un-dimmed and the overlay short of full-screen.
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-on-surface/50 px-4 py-8 backdrop-blur-sm animate-fade-in">
+      <div className="flex max-h-[85vh] w-full max-w-2xl animate-fade-in-up flex-col rounded-lg border border-outline-variant bg-surface-container-lowest shadow-soft-ink-lg">
+        <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-6 py-4">
           <h2 className="font-serif text-headline-md text-on-surface">New placement test</h2>
-          <button onClick={onClose} className="text-body-sm text-on-surface-variant">
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-body-sm text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+          >
             Close
           </button>
         </div>
 
-        {error && <p className="mb-4 text-body-sm text-error">{error}</p>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {error && (
+          <p className="mb-4 rounded-md bg-error-container px-3 py-2 text-body-sm text-on-error-container">
+            {error}
+          </p>
+        )}
 
         {/* Details */}
         <div className="mb-6 grid grid-cols-2 gap-3">
           <label className="col-span-2">
-            <span className="mb-1 block text-body-sm text-on-surface-variant">Title</span>
-            <input
+            <span className="mb-1.5 block text-body-sm text-on-surface-variant">Title</span>
+            <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={Boolean(testId)}
-              className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface focus:border-primary disabled:opacity-60"
+              className="w-full disabled:opacity-60"
               placeholder="Weekly Aptitude Test"
             />
           </label>
           <label>
-            <span className="mb-1 block text-body-sm text-on-surface-variant">Batch scope</span>
+            <span className="mb-1.5 block text-body-sm text-on-surface-variant">Batch scope</span>
             <select
               value={batchScope}
               onChange={(e) => setBatchScope(e.target.value)}
               disabled={Boolean(testId)}
-              className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface disabled:opacity-60"
+              className="h-11 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3.5 text-body-md text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none disabled:opacity-60"
             >
               <option value="ALL">All batches</option>
               <option value="A">Batch A</option>
@@ -219,24 +234,26 @@ export function CreateTestModal({ onClose, onDone }: Props) {
             </select>
           </label>
           <label>
-            <span className="mb-1 block text-body-sm text-on-surface-variant">Duration (min)</span>
-            <input
+            <span className="mb-1.5 block text-body-sm text-on-surface-variant">Duration (min)</span>
+            <Input
               type="number"
               value={durationMinutes}
               onChange={(e) => setDurationMinutes(Number(e.target.value))}
               disabled={Boolean(testId)}
-              className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface disabled:opacity-60"
+              className="w-full disabled:opacity-60"
             />
           </label>
         </div>
 
         {/* When to run it */}
-        <div className="mb-6 flex items-center gap-2">
+        <div className="mb-6 inline-flex items-center gap-1 rounded-md bg-surface-container-high p-1">
           <button
             type="button"
             onClick={() => setMode("now")}
-            className={`rounded-md px-3 py-1.5 text-body-sm ${
-              mode === "now" ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+            className={`rounded px-3 py-1.5 text-body-sm font-medium transition-all duration-200 ${
+              mode === "now"
+                ? "bg-surface-container-lowest text-on-surface shadow-soft-ink"
+                : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
             Start immediately
@@ -244,8 +261,10 @@ export function CreateTestModal({ onClose, onDone }: Props) {
           <button
             type="button"
             onClick={() => setMode("schedule")}
-            className={`rounded-md px-3 py-1.5 text-body-sm ${
-              mode === "schedule" ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
+            className={`rounded px-3 py-1.5 text-body-sm font-medium transition-all duration-200 ${
+              mode === "schedule"
+                ? "bg-surface-container-lowest text-on-surface shadow-soft-ink"
+                : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
             Schedule for later
@@ -253,24 +272,14 @@ export function CreateTestModal({ onClose, onDone }: Props) {
         </div>
 
         {mode === "schedule" && (
-          <div className="mb-6 grid grid-cols-2 gap-3">
+          <div className="mb-6 grid animate-fade-in grid-cols-2 gap-3">
             <label>
-              <span className="mb-1 block text-body-sm text-on-surface-variant">Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
-              />
+              <span className="mb-1.5 block text-body-sm text-on-surface-variant">Date</span>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full" />
             </label>
             <label>
-              <span className="mb-1 block text-body-sm text-on-surface-variant">Time</span>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-md text-on-surface"
-              />
+              <span className="mb-1.5 block text-body-sm text-on-surface-variant">Time</span>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full" />
             </label>
           </div>
         )}
@@ -279,22 +288,22 @@ export function CreateTestModal({ onClose, onDone }: Props) {
         <div className="mb-6 border-t border-outline-variant pt-6">
           <p className="mb-3 text-label-caps text-on-surface-variant">Question set</p>
           {questions.length === 0 ? (
-            <div className="rounded-md border border-dashed border-outline-variant p-6 text-center">
+            <div className="rounded-md border border-dashed border-outline-variant p-6 text-center transition-colors hover:border-primary/40 hover:bg-surface-container-low">
               <label className="cursor-pointer">
-                <input type="file" accept=".docx,.pdf" onChange={handleFileChange} className="hidden" disabled={isUploading} />
-                <span className="text-body-md text-primary underline underline-offset-2">
-                  {isUploading ? "Parsing…" : "Upload a .docx or .pdf question set"}
+                <input type="file" accept=".docx,.pdf,.md,.txt" onChange={handleFileChange} className="hidden" disabled={isUploading} />
+                <span className="text-body-md font-medium text-primary underline underline-offset-4 hover:text-primary-container">
+                  {isUploading ? "Parsing…" : "Upload a .docx, .pdf, .md, or .txt question set"}
                 </span>
               </label>
               <p className="mt-2 text-body-sm text-on-surface-variant">
                 or{" "}
-                <button onClick={addBlankQuestion} className="text-primary underline underline-offset-2">
+                <button onClick={addBlankQuestion} className="text-primary underline underline-offset-4 hover:text-primary-container">
                   add a question manually
                 </button>
               </p>
             </div>
           ) : (
-            <div className="flex max-h-80 flex-col gap-3 overflow-y-auto">
+            <div className="flex flex-col gap-3">
               {questions.map((q, i) => (
                 <QuestionReviewCard
                   key={i}
@@ -303,15 +312,16 @@ export function CreateTestModal({ onClose, onDone }: Props) {
                   onRemove={() => removeQuestion(i)}
                 />
               ))}
-              <button onClick={addBlankQuestion} className="text-left text-body-sm text-primary underline underline-offset-2">
+              <button onClick={addBlankQuestion} className="text-left text-body-sm text-primary underline underline-offset-4 hover:text-primary-container">
                 + Add another question
               </button>
             </div>
           )}
         </div>
+        </div>
 
         {/* Final action */}
-        <div className="flex items-center justify-end gap-3 border-t border-outline-variant pt-4">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-outline-variant px-6 py-4">
           {mode === "schedule" ? (
             <Button
               onClick={handleSchedule}
@@ -326,6 +336,7 @@ export function CreateTestModal({ onClose, onDone }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

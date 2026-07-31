@@ -7,13 +7,15 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
-import { SubmitAnswerDto, ReportViolationDto } from "./dto/attempt.dto";
+import { JudgeService } from "../judge/judge.service";
+import { SubmitAnswerDto, ReportViolationDto, RunCodeDto } from "./dto/attempt.dto";
+import { seededShuffle } from "./shuffle.util";
 
 const MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT = 5;
 
 @Injectable()
 export class AttemptsService {
-  constructor(private prisma: PrismaService, private redis: RedisService) {}
+  constructor(private prisma: PrismaService, private redis: RedisService, private judge: JudgeService) {}
 
   // Design doc §5, step 1: creates the attempt row lazily as the student
   // joins. Relies on the (testId, studentId) unique constraint so a second
@@ -69,19 +71,48 @@ export class AttemptsService {
     });
 
     // Never return correct-answer flags to the student — strip them before
-    // the questions leave the server.
-    const questions = await this.prisma.question.findMany({
+    // the questions leave the server. Same rule for coding questions: only
+    // sample test cases (isSample) are ever sent down; hidden cases' input
+    // and expected output never leave the DB until judged server-side.
+    const questionsInAuthoredOrder = await this.prisma.question.findMany({
       where: { testId },
       orderBy: { questionOrder: "asc" },
-      include: { options: { select: { id: true, optionText: true } } },
+      include: {
+        options: { select: { id: true, optionText: true } },
+        codingProblem: {
+          include: {
+            testCases: {
+              where: { isSample: true },
+              orderBy: { orderIndex: "asc" },
+              select: { id: true, input: true, expectedOutput: true, orderIndex: true },
+            },
+          },
+        },
+      },
     });
+
+    // Shuffle question order AND each question's option order — seeded by
+    // this attempt's id, so no two students see the same arrangement, but a
+    // given student's own refresh/resume always reproduces the same one
+    // (nothing to persist, no risk of drifting between requests).
+    const questions = seededShuffle(questionsInAuthoredOrder, `${attempt.id}:questions`).map((q, i) => ({
+      ...q,
+      questionOrder: i + 1,
+      options: seededShuffle(q.options, `${attempt.id}:${q.id}`),
+    }));
 
     // On a resumed attempt (page refresh, reconnect), the client otherwise
     // has no way to know what was already autosaved — it would render a
     // blank test even though the student's answers are safe in the DB.
     const existingAnswers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId: attempt.id },
-      select: { questionId: true, selectedOptionId: true, freeTextAnswer: true },
+      select: {
+        questionId: true,
+        selectedOptionId: true,
+        freeTextAnswer: true,
+        submittedCode: true,
+        codeLanguage: true,
+      },
     });
 
     // TestAttempt has no durationMinutes of its own (that's a Test-level
@@ -120,14 +151,53 @@ export class AttemptsService {
         questionId: dto.questionId,
         selectedOptionId: dto.selectedOptionId,
         freeTextAnswer: dto.freeTextAnswer,
+        submittedCode: dto.submittedCode,
+        codeLanguage: dto.codeLanguage,
         answeredAt: new Date(),
       },
       update: {
         selectedOptionId: dto.selectedOptionId,
         freeTextAnswer: dto.freeTextAnswer,
+        submittedCode: dto.submittedCode,
+        codeLanguage: dto.codeLanguage,
         answeredAt: new Date(),
       },
     });
+  }
+
+  // The student's "Run" button — judges the current editor content against
+  // SAMPLE cases only (never hidden ones, and never persisted as a graded
+  // submission) so they get pass/fail + actual-output feedback while still
+  // working on the problem. Does not affect score.
+  async runCode(attemptId: string, studentId: string, questionId: string, dto: RunCodeDto) {
+    await this.assertOwnership(attemptId, studentId);
+
+    const question = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      include: { codingProblem: { include: { testCases: { where: { isSample: true }, orderBy: { orderIndex: "asc" } } } } },
+    });
+    if (!question || question.questionType !== "coding" || !question.codingProblem) {
+      throw new NotFoundException("Coding question not found");
+    }
+    if (!question.codingProblem.allowedLanguages.includes(dto.language)) {
+      throw new BadRequestException(`This problem doesn't accept ${dto.language}`);
+    }
+
+    const results = await this.judge.runAgainstCases(
+      dto.sourceCode,
+      dto.language,
+      question.codingProblem.timeLimitMs,
+      question.codingProblem.memoryLimitMb,
+      question.codingProblem.testCases.map((tc) => ({
+        id: tc.id,
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        isSample: true,
+        points: Number(tc.points),
+      }))
+    );
+
+    return { results };
   }
 
   // Design doc §7: tab-switch/fullscreen violations are the reliable
@@ -159,11 +229,74 @@ export class AttemptsService {
     return { autoSubmitted: false, violationCount: count };
   }
 
-  // Design doc §10a: MCQ scores instantly; if the test has any non-MCQ
-  // questions the attempt goes to pending_grading instead of graded. Never
-  // trust the client's elapsed-time claim — this only checks ownership +
-  // status, actual deadline enforcement is the gateway's job (ticking
-  // against `attempt:{id}:state`, not this endpoint).
+  // Judges one coding answer against EVERY test case (sample + hidden),
+  // via Judge0 — unlike runCode() (samples only, ephemeral), this is the
+  // one graded, persisted judgement for the question. Runs outside any DB
+  // transaction since it's slow network I/O; only the resulting DB writes
+  // belong in the transaction submit() builds afterward.
+  private async gradeCodingAnswer(answer: {
+    id: string;
+    questionId: string;
+    submittedCode: string | null;
+    codeLanguage: string | null;
+  }) {
+    if (!answer.submittedCode || !answer.codeLanguage) {
+      return { answerId: answer.id, questionId: answer.questionId, score: 0, submission: null };
+    }
+
+    const codingProblem = await this.prisma.codingProblem.findUnique({
+      where: { questionId: answer.questionId },
+      include: { testCases: { orderBy: { orderIndex: "asc" } } },
+    });
+    if (!codingProblem) {
+      return { answerId: answer.id, questionId: answer.questionId, score: 0, submission: null };
+    }
+
+    const results = await this.judge.runAgainstCases(
+      answer.submittedCode,
+      answer.codeLanguage,
+      codingProblem.timeLimitMs,
+      codingProblem.memoryLimitMb,
+      codingProblem.testCases.map((tc) => ({
+        id: tc.id,
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        isSample: tc.isSample,
+        points: Number(tc.points),
+      }))
+    );
+
+    const maxScore = codingProblem.testCases.reduce((sum, tc) => sum + Number(tc.points), 0);
+    const score = results.reduce((sum, r) => sum + r.points, 0);
+    const overallStatus = results.every((r) => r.passed)
+      ? "accepted"
+      : results.some((r) => r.status === "judge_unavailable")
+        ? "judge_unavailable"
+        : results.some((r) => r.status === "compile_error")
+          ? "compile_error"
+          : "wrong_answer";
+
+    return {
+      answerId: answer.id,
+      questionId: answer.questionId,
+      score,
+      submission: {
+        language: answer.codeLanguage,
+        sourceCode: answer.submittedCode,
+        status: overallStatus,
+        score,
+        maxScore,
+        results: results as unknown as Prisma.InputJsonValue,
+      },
+    };
+  }
+
+  // MCQ scoring is always instant; coding questions are judged here too
+  // (against every test case, sample + hidden) so submit() is the one
+  // place a whole attempt's score becomes final. Never trust the client's
+  // elapsed-time claim — this only checks ownership + status, actual
+  // deadline enforcement is the gateway's job (ticking against
+  // `attempt:{id}:state`, not this endpoint).
   async submit(attemptId: string, studentId: string, reason: "manual" | "timeout" | "violation_threshold") {
     const attempt = await this.assertOwnership(attemptId, studentId);
 
@@ -173,21 +306,28 @@ export class AttemptsService {
     });
 
     let mcqScore = 0;
-    let hasNonMcq = false;
     const mcqAwards: { id: string; marksAwarded: number }[] = [];
 
     for (const answer of answers) {
-      if (answer.question.questionType === "mcq") {
-        const isCorrect = Boolean(answer.selectedOption?.isCorrect);
-        const awarded = isCorrect ? Number(answer.question.marks) : 0;
-        mcqScore += awarded;
-        mcqAwards.push({ id: answer.id, marksAwarded: awarded });
-      } else {
-        hasNonMcq = true;
-      }
+      if (answer.question.questionType === "coding") continue;
+      const isCorrect = Boolean(answer.selectedOption?.isCorrect);
+      const awarded = isCorrect ? Number(answer.question.marks) : 0;
+      mcqScore += awarded;
+      mcqAwards.push({ id: answer.id, marksAwarded: awarded });
     }
 
-    const status = reason === "violation_threshold" ? "flagged" : hasNonMcq ? "pending_grading" : "graded";
+    // Sequential, not Promise.all — each one is a handful of Judge0 calls
+    // already; running every coding question's judging concurrently would
+    // just hammer the judge server harder for no benefit at this scale.
+    const codingAnswers = answers.filter((a) => a.question.questionType === "coding");
+    const codingGrades = [];
+    for (const answer of codingAnswers) {
+      codingGrades.push(await this.gradeCodingAnswer(answer));
+    }
+    const codingScore = codingGrades.reduce((sum, g) => sum + g.score, 0);
+    const finalScore = mcqScore + codingScore;
+
+    const status = reason === "violation_threshold" ? "flagged" : "graded";
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.testAttempt.update({
@@ -196,7 +336,7 @@ export class AttemptsService {
           status,
           submittedAt: new Date(),
           mcqScore,
-          finalScore: hasNonMcq ? null : mcqScore,
+          finalScore,
         },
       }),
       // Per-question marksAwarded so the results screen's breakdown agrees
@@ -209,6 +349,23 @@ export class AttemptsService {
           data: { marksAwarded: a.marksAwarded },
         })
       ),
+      ...codingGrades
+        .filter((g) => g.submission)
+        .map((g) =>
+          this.prisma.attemptAnswer.update({
+            where: { id: g.answerId },
+            data: { marksAwarded: g.score },
+          })
+        ),
+      ...codingGrades
+        .filter((g): g is typeof g & { submission: NonNullable<(typeof g)["submission"]> } => Boolean(g.submission))
+        .map((g) =>
+          this.prisma.codingSubmission.upsert({
+            where: { attemptId_questionId: { attemptId, questionId: g.questionId } },
+            create: { attemptId, questionId: g.questionId, ...g.submission },
+            update: { ...g.submission, judgedAt: new Date() },
+          })
+        ),
     ]);
 
     await this.redis.removeActiveStudent(attempt.testId, studentId);

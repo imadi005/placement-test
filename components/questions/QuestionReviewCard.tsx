@@ -2,6 +2,8 @@
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { CodingProblemEditor } from "./CodingProblemEditor";
+import { defaultCodingProblem, EditableCodingProblem } from "./coding-types";
 
 export interface EditableOption {
   optionText: string;
@@ -11,11 +13,10 @@ export interface EditableOption {
 export interface EditableQuestion {
   questionText: string;
   questionOrder: number;
-  questionType: string;
+  questionType: string; // "mcq" | "coding"
   options: EditableOption[];
-  modelAnswer?: string | null;
-  rubricNotes?: string | null;
   parseWarning?: string | null;
+  codingProblem?: EditableCodingProblem;
 }
 
 interface Props {
@@ -38,6 +39,14 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
     onChange({ ...question, options });
   }
 
+  function setQuestionType(questionType: string) {
+    if (questionType === "coding") {
+      onChange({ ...question, questionType, codingProblem: question.codingProblem ?? defaultCodingProblem() });
+    } else {
+      onChange({ ...question, questionType });
+    }
+  }
+
   return (
     <Card className={question.parseWarning ? "border-tertiary" : undefined}>
       <div className="mb-3 flex items-start justify-between gap-4">
@@ -45,13 +54,11 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
           <span className="text-label-caps text-on-surface-variant">Question {question.questionOrder} ·</span>
           <select
             value={question.questionType}
-            onChange={(e) => onChange({ ...question, questionType: e.target.value })}
+            onChange={(e) => setQuestionType(e.target.value)}
             className="rounded border border-outline-variant bg-surface-container-lowest px-1.5 py-0.5 text-label-caps text-on-surface-variant"
           >
             <option value="mcq">MCQ</option>
-            <option value="short_answer">SHORT ANSWER</option>
-            <option value="numeric">NUMERIC</option>
-            <option value="descriptive">DESCRIPTIVE</option>
+            <option value="coding">CODING</option>
           </select>
         </div>
         <button onClick={onRemove} className="text-body-sm text-error underline underline-offset-2">
@@ -68,22 +75,27 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
       <textarea
         value={question.questionText}
         onChange={(e) => onChange({ ...question, questionText: e.target.value })}
-        rows={2}
-        className="mb-4 w-full rounded-md border border-outline-variant bg-surface-container-lowest p-3 text-body-md text-on-surface focus:border-primary"
-        placeholder="Question text"
+        rows={question.questionType === "coding" ? 4 : 2}
+        className="mb-4 w-full rounded-md border border-outline-variant bg-surface-container-lowest p-3 text-body-md text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
+        placeholder={question.questionType === "coding" ? "Problem statement" : "Question text"}
       />
 
-      {question.questionType === "mcq" ? (
+      {question.questionType === "coding" ? (
+        <CodingProblemEditor
+          problem={question.codingProblem ?? defaultCodingProblem()}
+          onChange={(codingProblem) => onChange({ ...question, codingProblem })}
+        />
+      ) : (
         <div className="flex flex-col gap-2">
           {question.options.map((option, i) => (
             <div key={i} className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => markCorrect(i)}
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-body-sm ${
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-body-sm transition-colors ${
                   option.isCorrect
                     ? "border-secondary bg-secondary-container text-on-secondary-container"
-                    : "border-outline-variant text-on-surface-variant"
+                    : "border-outline-variant text-on-surface-variant hover:border-secondary/50"
                 }`}
                 title="Mark as correct answer"
               >
@@ -92,19 +104,11 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
               <input
                 value={option.optionText}
                 onChange={(e) => updateOption(i, { optionText: e.target.value })}
-                className="flex-1 rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface focus:border-primary"
+                className="flex-1 rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
               />
             </div>
           ))}
         </div>
-      ) : (
-        <textarea
-          value={question.modelAnswer ?? ""}
-          onChange={(e) => onChange({ ...question, modelAnswer: e.target.value })}
-          rows={2}
-          className="w-full rounded-md border border-outline-variant bg-surface-container-lowest p-3 text-body-sm text-on-surface focus:border-primary"
-          placeholder="Model answer / rubric notes for the grader"
-        />
       )}
     </Card>
   );
