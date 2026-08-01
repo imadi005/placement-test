@@ -40,8 +40,14 @@ export class TestsService {
   // Coordinator/admin listing — everything, any status, most recently
   // created first (not scheduledStart — a just-created draft has no
   // schedule yet and was sorting to the bottom/randomly instead of to top).
+  // Every coordinator sees the same shared list — except tests created
+  // under the priya.menon@kju.edu demo/test account, which are excluded
+  // here so real coordinators aren't seeing dev/QA clutter.
   async findAllForStaff() {
-    return this.prisma.test.findMany({ orderBy: { createdAt: "desc" } });
+    return this.prisma.test.findMany({
+      where: { createdBy: { email: { not: "priya.menon@kju.edu" } } },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   // Student listing — only scheduled/live tests scoped to their own batch (or ALL)
