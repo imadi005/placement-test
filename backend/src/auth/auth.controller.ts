@@ -54,14 +54,15 @@ export class AuthController {
     };
   }
 
-  // Verifies the first-login OTP and, on success, hands back the same kind
-  // of one-time token the emailed reset-link flow uses — the frontend feeds
-  // it straight into the existing reset-password screen to finish the job.
+  // Shared by first-login and forgot-password — both send an OTP to the
+  // same otpCodeHash/otpExpiresAt fields, so one verify endpoint covers
+  // either. On success, hands back the same one-time token the
+  // reset-password screen needs to finish the job.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("verify-otp")
   @HttpCode(200)
   async verifyOtp(@Body() dto: VerifyOtpDto) {
-    const resetToken = await this.authService.verifyFirstLoginOtp(dto.identifier, dto.otp);
+    const resetToken = await this.authService.verifyOtp(dto.identifier, dto.otp);
     return { resetToken };
   }
 
@@ -83,7 +84,7 @@ export class AuthController {
   @HttpCode(200)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.requestPasswordReset(dto.identifier);
-    return { message: "If an account exists for that identifier, a reset link has been sent." };
+    return { message: "If an account exists for that identifier, a code has been sent to its registered email." };
   }
 
   // Logs the user straight in after a successful reset (OTP-verified

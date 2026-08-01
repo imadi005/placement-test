@@ -76,19 +76,11 @@ export class MailService {
     );
   }
 
-  async sendPasswordResetEmail(to: string, resetUrl: string) {
-    await this.send(
-      to,
-      "Reset your Placement Test Portal password",
-      `We received a request to reset your password.\n\nReset it here (valid for 1 hour): ${resetUrl}\n\nIf you didn't request this, you can safely ignore this email.`
-    );
-  }
-
   async sendOtpEmail(to: string, otp: string) {
     await this.send(
       to,
       "Your Placement Test Portal sign-in code",
-      `Your one-time code to finish signing in is: ${otp}\n\nThis code is valid for 10 minutes. If you didn't try to sign in, you can safely ignore this email.`
+      `Your one-time code is: ${otp}\n\nThis code is valid for 10 minutes. If you didn't request this, you can safely ignore this email.`
     );
   }
 }

@@ -105,34 +105,40 @@ export class AuthService {
     });
   }
 
-  // First login (mustChangePassword still true) never gets a session token
-  // straight away — it gets an OTP mailed to the account's own registered
-  // address instead, and only reaches the password-set step once that's
-  // proven. Returns a masked version of the address for the frontend to
-  // show ("code sent to 25******58@kristujayanti.com").
-  async sendFirstLoginOtp(user: { id: string; email: string }): Promise<string> {
+  // Shared by both first-login and forgot-password — same mechanics either
+  // way: generate a 6-digit code, hash+store it with a 10-minute expiry,
+  // and fire off the email without awaiting it (SMTP can be slow or, on
+  // some hosts, outright unreachable — the OTP is already saved, so the
+  // caller's response shouldn't hang on mail delivery). A failed send just
+  // means the email never arrives; the user can request a fresh OTP.
+  private async generateAndSendOtp(user: { id: string; email: string }): Promise<void> {
     const otp = randomInt(0, 1_000_000).toString().padStart(6, "0");
     const otpCodeHash = await bcrypt.hash(otp, 12);
     await this.prisma.user.update({
       where: { id: user.id },
       data: { otpCodeHash, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS) },
     });
-    // Deliberately not awaited: SMTP can be slow or, on some hosts, outright
-    // unreachable (blocked outbound port) — the OTP is already saved, so
-    // the login response (and the masked-email confirmation) shouldn't
-    // hang on mail delivery. A failure here just means the email never
-    // arrives; the user can log in again to get a fresh OTP.
     this.mail.sendOtpEmail(user.email, otp).catch((err) => {
-      this.logger.error(`Failed to send first-login OTP to ${user.email}: ${(err as Error).message}`);
+      this.logger.error(`Failed to send OTP to ${user.email}: ${(err as Error).message}`);
     });
+  }
+
+  // First login (mustChangePassword still true) never gets a session token
+  // straight away — it gets an OTP mailed to the account's own registered
+  // address instead, and only reaches the password-set step once that's
+  // proven. Returns a masked version of the address for the frontend to
+  // show ("code sent to 25******58@kristujayanti.com").
+  async sendFirstLoginOtp(user: { id: string; email: string }): Promise<string> {
+    await this.generateAndSendOtp(user);
     return maskEmail(user.email);
   }
 
-  // Proves the OTP, then hands back the same kind of one-time token the
-  // email reset-link flow uses — resetPassword() below is the single place
-  // a new password actually gets written, regardless of which flow (OTP or
-  // emailed link) got the user there.
-  async verifyFirstLoginOtp(identifier: string, otp: string): Promise<string> {
+  // Shared by first-login and forgot-password (both write to the same
+  // otpCodeHash/otpExpiresAt fields). Proves the OTP, then hands back a
+  // one-time token — resetPassword() below is the single place a new
+  // password actually gets written, regardless of which flow got the user
+  // here.
+  async verifyOtp(identifier: string, otp: string): Promise<string> {
     const user = await this.resolveUser(identifier);
     if (!user || !user.otpCodeHash || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
       throw new BadRequestException("That code is invalid or has expired.");
@@ -158,19 +164,16 @@ export class AuthService {
 
   // Deliberately does not reveal whether the identifier matched an account
   // — same response either way, so this can't be used to enumerate valid
-  // roll numbers/emails.
+  // roll numbers/emails. Same OTP mechanics as first-login now (an emailed
+  // link was the original design, but it meant waiting on a college mail
+  // server's spam-greylisting delay just to click through; a code the
+  // user types back in is no slower to send and doesn't depend on the
+  // reset link itself surviving forwarding/copy-paste).
   async requestPasswordReset(identifier: string) {
     const user = await this.resolveUser(identifier);
     if (!user || !user.isActive) return;
 
-    const token = randomBytes(32).toString("hex");
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { resetToken: token, resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
-    });
-
-    const frontendUrl = this.config.get<string>("FRONTEND_URL") ?? "http://localhost:3000";
-    await this.mail.sendPasswordResetEmail(user.email, `${frontendUrl}/reset-password?token=${token}`);
+    await this.generateAndSendOtp(user);
   }
 
   // Returns the updated user (rather than void) so the controller can log

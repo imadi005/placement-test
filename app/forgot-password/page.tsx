@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/AuthCard";
@@ -8,7 +9,7 @@ import { AuthCard } from "@/components/AuthCard";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export default function ForgotPasswordPage() {
-  const [submitted, setSubmitted] = useState(false);
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,13 +27,12 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ identifier }),
       });
       if (!res.ok) throw new Error();
-      // Always show the same confirmation regardless of whether the
+      // Always move on to the OTP screen regardless of whether the
       // identifier matched an account — the backend deliberately doesn't
-      // reveal that either.
-      setSubmitted(true);
+      // reveal that either, so this can't be used to enumerate accounts.
+      router.push(`/verify-otp?identifier=${encodeURIComponent(identifier)}`);
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthCard
       title="Reset your password"
-      subtitle="Enter your roll number (or email, for staff) and we'll send a reset link."
+      subtitle="Enter your User ID and we'll email you a verification code."
       footer={
         <a
           href="/login"
@@ -50,29 +50,28 @@ export default function ForgotPasswordPage() {
         </a>
       }
     >
-      {submitted ? (
-        <p className="animate-fade-in text-body-md text-on-surface">
-          If an account exists for that identifier, a reset link has been sent to its registered
-          email. Check your inbox — the link expires in 1 hour.
-        </p>
-      ) : (
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-label-caps text-on-surface-variant">Roll number or email</span>
-            <Input name="identifier" type="text" autoComplete="username" required placeholder="25MCAB58" />
-          </label>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-label-caps text-on-surface-variant">User ID</span>
+          <Input
+            name="identifier"
+            type="text"
+            autoComplete="username"
+            required
+            placeholder="25MCAB58 or you@kristujayanti.com"
+          />
+        </label>
 
-          {error && (
-            <p role="alert" className="text-body-sm text-error">
-              {error}
-            </p>
-          )}
+        {error && (
+          <p role="alert" className="text-body-sm text-error">
+            {error}
+          </p>
+        )}
 
-          <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Sending…" : "Send reset link"}
-          </Button>
-        </form>
-      )}
+        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Sending…" : "Send code"}
+        </Button>
+      </form>
     </AuthCard>
   );
 }

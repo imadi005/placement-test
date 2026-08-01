@@ -61,7 +61,7 @@ function VerifyOtpForm() {
           href="/login"
           className="mt-6 block text-center text-body-sm text-on-surface-variant transition-colors hover:text-primary"
         >
-          Didn't get a code? Go back and sign in again
+          Didn't get a code? Start over
         </a>
       }
     >
