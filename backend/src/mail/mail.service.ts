@@ -22,6 +22,12 @@ export class MailService {
         port: Number(this.config.get<string>("SMTP_PORT") ?? 587),
         secure: Number(this.config.get<string>("SMTP_PORT") ?? 587) === 465,
         auth: { user, pass },
+        // On some hosts (e.g. a PaaS blocking outbound SMTP ports) a
+        // connection just hangs instead of failing fast — without these,
+        // an awaited sendMail() can stall a request indefinitely.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 10_000,
       });
     }
   }

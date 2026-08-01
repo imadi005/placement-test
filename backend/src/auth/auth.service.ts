@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
@@ -20,6 +20,8 @@ function maskEmail(email: string): string {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -115,7 +117,14 @@ export class AuthService {
       where: { id: user.id },
       data: { otpCodeHash, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS) },
     });
-    await this.mail.sendOtpEmail(user.email, otp);
+    // Deliberately not awaited: SMTP can be slow or, on some hosts, outright
+    // unreachable (blocked outbound port) — the OTP is already saved, so
+    // the login response (and the masked-email confirmation) shouldn't
+    // hang on mail delivery. A failure here just means the email never
+    // arrives; the user can log in again to get a fresh OTP.
+    this.mail.sendOtpEmail(user.email, otp).catch((err) => {
+      this.logger.error(`Failed to send first-login OTP to ${user.email}: ${(err as Error).message}`);
+    });
     return maskEmail(user.email);
   }
 
