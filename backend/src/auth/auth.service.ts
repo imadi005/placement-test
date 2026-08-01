@@ -2,11 +2,21 @@ import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
-import { randomBytes } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Shows just enough of the address to confirm "yes, that's my inbox" without
+// giving a shoulder-surfer the whole thing — e.g. "25mcab58@kristujayanti.com"
+// becomes "25******58@kristujayanti.com".
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain || local.length <= 4) return `${local[0] ?? ""}***@${domain ?? ""}`;
+  return `${local.slice(0, 2)}${"*".repeat(local.length - 4)}${local.slice(-2)}@${domain}`;
+}
 
 @Injectable()
 export class AuthService {
@@ -93,6 +103,50 @@ export class AuthService {
     });
   }
 
+  // First login (mustChangePassword still true) never gets a session token
+  // straight away — it gets an OTP mailed to the account's own registered
+  // address instead, and only reaches the password-set step once that's
+  // proven. Returns a masked version of the address for the frontend to
+  // show ("code sent to 25******58@kristujayanti.com").
+  async sendFirstLoginOtp(user: { id: string; email: string }): Promise<string> {
+    const otp = randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const otpCodeHash = await bcrypt.hash(otp, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { otpCodeHash, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS) },
+    });
+    await this.mail.sendOtpEmail(user.email, otp);
+    return maskEmail(user.email);
+  }
+
+  // Proves the OTP, then hands back the same kind of one-time token the
+  // email reset-link flow uses — resetPassword() below is the single place
+  // a new password actually gets written, regardless of which flow (OTP or
+  // emailed link) got the user there.
+  async verifyFirstLoginOtp(identifier: string, otp: string): Promise<string> {
+    const user = await this.resolveUser(identifier);
+    if (!user || !user.otpCodeHash || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+      throw new BadRequestException("That code is invalid or has expired.");
+    }
+
+    const matches = await bcrypt.compare(otp, user.otpCodeHash);
+    if (!matches) {
+      throw new BadRequestException("That code is invalid or has expired.");
+    }
+
+    const token = randomBytes(32).toString("hex");
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        otpCodeHash: null,
+        otpExpiresAt: null,
+        resetToken: token,
+        resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    });
+    return token;
+  }
+
   // Deliberately does not reveal whether the identifier matched an account
   // — same response either way, so this can't be used to enumerate valid
   // roll numbers/emails.
@@ -110,6 +164,10 @@ export class AuthService {
     await this.mail.sendPasswordResetEmail(user.email, `${frontendUrl}/reset-password?token=${token}`);
   }
 
+  // Returns the updated user (rather than void) so the controller can log
+  // the user straight in afterward — both the OTP-verified first-login path
+  // and the emailed reset-link path land here, and neither should need to
+  // re-enter credentials for a password they just finished proving they own.
   async resetPassword(token: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { resetToken: token } });
     if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
@@ -117,7 +175,7 @@ export class AuthService {
     }
 
     const passwordHash = await this.hashPassword(newPassword);
-    await this.prisma.user.update({
+    return this.prisma.user.update({
       where: { id: user.id },
       data: { passwordHash, mustChangePassword: false, resetToken: null, resetTokenExpiresAt: null },
     });

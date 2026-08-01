@@ -6,6 +6,7 @@ import { LoginDto } from "./dto/login.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { ChangePasswordDto } from "./dto/change-password.dto";
+import { VerifyOtpDto } from "./dto/verify-otp.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
 
@@ -27,20 +28,41 @@ const AUTH_THROTTLE_LIMIT = Number(process.env.AUTH_THROTTLE_LIMIT ?? 5);
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // First login (mustChangePassword still true) never gets a session token
+  // here — credentials just prove they know the temp password; an OTP to
+  // their own registered email proves the account is actually theirs before
+  // they're allowed to set a real password. Everyone else logs in as before.
   @Throttle({ default: { limit: AUTH_THROTTLE_LIMIT, ttl: 60_000 } })
   @Post("login")
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.authService.validateCredentials(dto.identifier, dto.password);
-    const { accessToken, refreshToken } = await this.authService.issueTokens(user.id, user.role);
 
+    if (user.mustChangePassword) {
+      const maskedEmail = await this.authService.sendFirstLoginOtp(user);
+      return { otpRequired: true, identifier: dto.identifier, maskedEmail };
+    }
+
+    const { accessToken, refreshToken } = await this.authService.issueTokens(user.id, user.role);
     res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
 
     return {
+      otpRequired: false,
       accessToken,
       user: { id: user.id, role: user.role, fullName: user.fullName },
-      mustChangePassword: user.mustChangePassword,
+      mustChangePassword: false,
     };
+  }
+
+  // Verifies the first-login OTP and, on success, hands back the same kind
+  // of one-time token the emailed reset-link flow uses — the frontend feeds
+  // it straight into the existing reset-password screen to finish the job.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post("verify-otp")
+  @HttpCode(200)
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const resetToken = await this.authService.verifyFirstLoginOtp(dto.identifier, dto.otp);
+    return { resetToken };
   }
 
   // First-login forced change — the user is authenticated (JWT) but hasn't
@@ -64,12 +86,22 @@ export class AuthController {
     return { message: "If an account exists for that identifier, a reset link has been sent." };
   }
 
+  // Logs the user straight in after a successful reset (OTP-verified
+  // first-login and emailed reset-link both end up here) — they just
+  // proved ownership of the account, no reason to make them type
+  // credentials again immediately after.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("reset-password")
   @HttpCode(200)
-  async resetPassword(@Body() dto: ResetPasswordDto) {
-    await this.authService.resetPassword(dto.token, dto.newPassword);
-    return { success: true };
+  async resetPassword(@Body() dto: ResetPasswordDto, @Res({ passthrough: true }) res: Response) {
+    const user = await this.authService.resetPassword(dto.token, dto.newPassword);
+    const { accessToken, refreshToken } = await this.authService.issueTokens(user.id, user.role);
+    res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
+
+    return {
+      accessToken,
+      user: { id: user.id, role: user.role, fullName: user.fullName },
+    };
   }
 
   @Post("refresh")

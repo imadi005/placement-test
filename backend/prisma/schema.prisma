@@ -64,6 +64,11 @@ model User {
   mustChangePassword  Boolean   @default(true) @map("must_change_password")
   resetToken          String?   @unique @map("reset_token")
   resetTokenExpiresAt DateTime? @map("reset_token_expires_at")
+  // First-login (and future 2FA-style) email OTP — separate from
+  // resetToken/resetTokenExpiresAt, which represent the *link* a verified
+  // OTP hands off to so the existing reset-password flow can finish the job.
+  otpCodeHash  String?   @map("otp_code_hash")
+  otpExpiresAt DateTime? @map("otp_expires_at")
 
   student       Student?
   auditLogs     AuditLog[]      @relation("actor")

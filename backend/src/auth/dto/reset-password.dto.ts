@@ -1,10 +1,11 @@
-import { IsString, MinLength } from "class-validator";
+import { IsString, Matches } from "class-validator";
+import { PASSWORD_REGEX, PASSWORD_RULES_MESSAGE } from "../password.util";
 
 export class ResetPasswordDto {
   @IsString()
   token!: string;
 
   @IsString()
-  @MinLength(8)
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_RULES_MESSAGE })
   newPassword!: string;
 }

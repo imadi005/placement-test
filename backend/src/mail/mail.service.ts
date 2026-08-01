@@ -44,4 +44,23 @@ export class MailService {
       text,
     });
   }
+
+  async sendOtpEmail(to: string, otp: string) {
+    const subject = "Your Placement Test Portal sign-in code";
+    const text = `Your one-time code to finish signing in is: ${otp}\n\nThis code is valid for 10 minutes. If you didn't try to sign in, you can safely ignore this email.`;
+
+    if (!this.transporter) {
+      this.logger.warn(
+        `SMTP not configured — printing OTP email instead of sending it.\nTo: ${to}\nSubject: ${subject}\n${text}`
+      );
+      return;
+    }
+
+    await this.transporter.sendMail({
+      from: this.config.get<string>("SMTP_FROM") ?? "no-reply@kristujayanti.com",
+      to,
+      subject,
+      text,
+    });
+  }
 }
