@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { AuthCard } from "@/components/AuthCard";
 import { setSession } from "@/lib/session";
 
@@ -88,7 +89,7 @@ export default function LoginPage() {
 
         <label className="flex flex-col gap-1.5">
           <span className="text-label-caps text-on-surface-variant">Password</span>
-          <Input name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
+          <PasswordInput name="password" autoComplete="current-password" required placeholder="••••••••" />
         </label>
 
         {error && (

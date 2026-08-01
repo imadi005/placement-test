@@ -3,7 +3,7 @@
 import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { AuthCard } from "@/components/AuthCard";
 import { PasswordStrengthMeter, passwordMeetsRules } from "@/components/auth/PasswordStrengthMeter";
 import { setSession } from "@/lib/session";
@@ -82,9 +82,8 @@ function ResetPasswordForm() {
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <label className="flex flex-col gap-1.5">
             <span className="text-label-caps text-on-surface-variant">New password</span>
-            <Input
+            <PasswordInput
               name="newPassword"
-              type="password"
               autoComplete="new-password"
               required
               value={newPassword}
@@ -97,9 +96,8 @@ function ResetPasswordForm() {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-label-caps text-on-surface-variant">Confirm password</span>
-            <Input
+            <PasswordInput
               name="confirmPassword"
-              type="password"
               autoComplete="new-password"
               required
               value={confirmPassword}
