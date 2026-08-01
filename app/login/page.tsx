@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/AuthCard";
+import { setSession } from "@/lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -31,21 +32,21 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        setError("Invalid roll number/email or password.");
+        setError("Invalid user ID or password.");
         return;
       }
 
       const data = await res.json();
-      // TODO: move this into a proper auth context/provider once more pages
-      // need the token — sessionStorage is a placeholder, not a final choice.
-      sessionStorage.setItem("accessToken", data.accessToken);
-      sessionStorage.setItem("role", data.user.role);
-      sessionStorage.setItem("fullName", data.user.fullName);
 
-      if (data.mustChangePassword) {
-        router.push("/change-password");
+      // First login (or any account still on a temp password) never gets a
+      // session here — it gets an emailed OTP instead, and only reaches the
+      // app after that's verified and a real password is set.
+      if (data.otpRequired) {
+        router.push(`/verify-otp?identifier=${encodeURIComponent(identifier)}&masked=${encodeURIComponent(data.maskedEmail)}`);
         return;
       }
+
+      setSession(data.accessToken, data.user.role, data.user.fullName);
 
       const roleRoutes: Record<string, string> = {
         student: "/dashboard",
@@ -63,7 +64,7 @@ export default function LoginPage() {
   return (
     <AuthCard
       title="Welcome back"
-      subtitle="Sign in with your roll number to continue."
+      subtitle="Sign in with your user ID to continue."
       footer={
         <a
           href="/forgot-password"
@@ -75,8 +76,14 @@ export default function LoginPage() {
     >
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <label className="flex flex-col gap-1.5">
-          <span className="text-label-caps text-on-surface-variant">Roll number</span>
-          <Input name="identifier" type="text" autoComplete="username" required placeholder="25MCAB58" />
+          <span className="text-label-caps text-on-surface-variant">User ID</span>
+          <Input
+            name="identifier"
+            type="text"
+            autoComplete="username"
+            required
+            placeholder="25MCAB58 or you@kristujayanti.com"
+          />
         </label>
 
         <label className="flex flex-col gap-1.5">

@@ -5,13 +5,9 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { BatchDistributionCard } from "@/components/admin/BatchDistributionCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface BatchCount {
   batch: string;
@@ -39,8 +35,8 @@ export default function AdminDashboardPage() {
     async function load() {
       try {
         const [batchRes, testsRes] = await Promise.all([
-          fetch(`${API_URL}/batches/distribution`, { headers: authHeaders() }),
-          fetch(`${API_URL}/tests`, { headers: authHeaders() }),
+          authFetch(`${API_URL}/batches/distribution`),
+          authFetch(`${API_URL}/tests`),
         ]);
         if (batchRes.ok) setBatches(await batchRes.json());
         if (testsRes.ok) setTests(await testsRes.json());

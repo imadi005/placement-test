@@ -3,13 +3,9 @@
 import { Fragment, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 export interface ScoreRow {
   attemptId: string;
@@ -96,7 +92,7 @@ export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
     setLoadingId(attemptId);
     setErrorId(null);
     try {
-      const res = await fetch(`${API_URL}/attempts/${attemptId}/result`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/attempts/${attemptId}/result`);
       if (!res.ok) throw new Error();
       const data: AttemptDetail = await res.json();
       setDetails((prev) => ({ ...prev, [attemptId]: data }));

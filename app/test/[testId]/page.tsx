@@ -8,9 +8,11 @@ import { CodingQuestionCard, CodingProblemView } from "@/components/test/CodingQ
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const LOW_TIME_THRESHOLD_SECONDS = 5 * 60;
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 interface BackendQuestion {
   id: string;
@@ -27,11 +29,6 @@ function formatTime(totalSeconds: number) {
   const m = Math.floor(safe / 60);
   const s = safe % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
 export default function LiveTestPage() {
@@ -66,9 +63,8 @@ export default function LiveTestPage() {
   async function startAttempt() {
     setIsStarting(true);
     try {
-      const res = await fetch(`${API_URL}/tests/${testId}/attempts/start`, {
+      const res = await authFetch(`${API_URL}/tests/${testId}/attempts/start`, {
         method: "POST",
-        headers: authHeaders(),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -162,9 +158,9 @@ export default function LiveTestPage() {
   async function reportViolation(type: string) {
     if (!attemptId) return;
     try {
-      const res = await fetch(`${API_URL}/attempts/${attemptId}/violations`, {
+      const res = await authFetch(`${API_URL}/attempts/${attemptId}/violations`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: JSON_HEADERS,
         body: JSON.stringify({ type }),
       });
       const data = await res.json();
@@ -207,9 +203,9 @@ export default function LiveTestPage() {
     setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
     if (!attemptId) return;
     try {
-      await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+      await authFetch(`${API_URL}/attempts/${attemptId}/answers`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: JSON_HEADERS,
         body: JSON.stringify({ questionId, selectedOptionId: optionId }),
       });
     } catch {
@@ -225,9 +221,9 @@ export default function LiveTestPage() {
     clearTimeout(codeSaveTimers.current[questionId]);
     codeSaveTimers.current[questionId] = setTimeout(async () => {
       try {
-        await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+        await authFetch(`${API_URL}/attempts/${attemptId}/answers`, {
           method: "POST",
-          headers: authHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({ questionId, submittedCode: code, codeLanguage: language }),
         });
       } catch {
@@ -249,9 +245,9 @@ export default function LiveTestPage() {
 
   async function handleRunCode(questionId: string, sourceCode: string, language: string) {
     if (!attemptId) throw new Error("No attempt in progress");
-    const res = await fetch(`${API_URL}/attempts/${attemptId}/questions/${questionId}/run`, {
+    const res = await authFetch(`${API_URL}/attempts/${attemptId}/questions/${questionId}/run`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ sourceCode, language }),
     });
     if (!res.ok) throw new Error("Run failed");
@@ -268,16 +264,15 @@ export default function LiveTestPage() {
         clearTimeout(timer);
         const entry = codeAnswers[questionId];
         if (!entry) continue;
-        await fetch(`${API_URL}/attempts/${attemptId}/answers`, {
+        await authFetch(`${API_URL}/attempts/${attemptId}/answers`, {
           method: "POST",
-          headers: authHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({ questionId, submittedCode: entry.code, codeLanguage: entry.language }),
         }).catch(() => {});
       }
 
-      await fetch(`${API_URL}/attempts/${attemptId}/submit`, {
+      await authFetch(`${API_URL}/attempts/${attemptId}/submit`, {
         method: "POST",
-        headers: authHeaders(),
       });
     } finally {
       await exitFullscreenAndGo(`/results/${attemptId}`);

@@ -4,13 +4,9 @@ import { useEffect, useState } from "react";
 import { UpcomingTestCard } from "@/components/dashboard/UpcomingTestCard";
 import { ScoreHistoryTable, ScoreRow } from "@/components/dashboard/ScoreHistoryTable";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface Me {
   fullName: string;
@@ -43,9 +39,9 @@ export default function DashboardPage() {
     async function load() {
       try {
         const [meRes, testsRes, attemptsRes] = await Promise.all([
-          fetch(`${API_URL}/users/me`, { headers: authHeaders() }),
-          fetch(`${API_URL}/tests`, { headers: authHeaders() }),
-          fetch(`${API_URL}/students/me/attempts`, { headers: authHeaders() }),
+          authFetch(`${API_URL}/users/me`),
+          authFetch(`${API_URL}/tests`),
+          authFetch(`${API_URL}/students/me/attempts`),
         ]);
 
         if (meRes.ok) setMe(await meRes.json());

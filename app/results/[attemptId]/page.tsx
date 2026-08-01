@@ -9,13 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { LeaderboardTable, LeaderboardEntry, OverallWinnerBanner } from "@/components/test/LeaderboardTable";
 import { ProblemWinnersCard, ProblemWinner } from "@/components/test/ProblemWinnersCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface ResultAnswer {
   id: string;
@@ -53,7 +49,7 @@ export default function ResultsPage() {
   useEffect(() => {
     if (!ready) return;
     async function load() {
-      const res = await fetch(`${API_URL}/attempts/${attemptId}/result`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/attempts/${attemptId}/result`);
       if (!res.ok) {
         setError("Couldn't load this result.");
         return;
@@ -61,7 +57,7 @@ export default function ResultsPage() {
       const data: AttemptResult = await res.json();
       setResult(data);
 
-      const lbRes = await fetch(`${API_URL}/tests/${data.testId}/leaderboard`, { headers: authHeaders() });
+      const lbRes = await authFetch(`${API_URL}/tests/${data.testId}/leaderboard`);
       if (lbRes.ok) setLeaderboard(await lbRes.json());
     }
     load();

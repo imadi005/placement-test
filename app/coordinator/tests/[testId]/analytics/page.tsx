@@ -21,13 +21,9 @@ import { StatCard } from "@/components/ui/StatCard";
 import { ChartCard } from "@/components/analytics/ChartCard";
 import { CATEGORICAL_COLORS, CHART_GRID, axisTick, tooltipStyle } from "@/components/analytics/chart-theme";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface GroupStat {
   attempted: number;
@@ -110,7 +106,7 @@ export default function TestAnalyticsPage() {
     if (!ready) return;
     async function load() {
       try {
-        const res = await fetch(`${API_URL}/tests/${testId}/analytics`, { headers: authHeaders() });
+        const res = await authFetch(`${API_URL}/tests/${testId}/analytics`);
         if (!res.ok) {
           setError("Couldn't load analytics for this test.");
           return;
@@ -126,7 +122,7 @@ export default function TestAnalyticsPage() {
   async function handleExport() {
     setIsExporting(true);
     try {
-      const res = await fetch(`${API_URL}/tests/${testId}/analytics/export`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/tests/${testId}/analytics/export`);
       if (!res.ok) throw new Error();
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

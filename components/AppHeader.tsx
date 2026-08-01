@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { clearSession, getFullName, getRole } from "@/lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -15,10 +16,10 @@ const ROLE_HOME: Record<string, string> = {
 // Screens with their own full-bleed layout (auth, and the live exam itself,
 // which deliberately keeps chrome minimal to reduce distraction/exit
 // temptation during a timed, proctored test). Critically, the header's own
-// "home" link must not appear on /change-password — that's a forced,
-// non-skippable step, and a nav link back to the app would let a user with
-// mustChangePassword=true route around it entirely.
-const HIDDEN_ON = ["/login", "/change-password", "/forgot-password", "/reset-password"];
+// "home" link must not appear on /verify-otp or /reset-password — first
+// login is a forced, non-skippable sequence, and a nav link back to the app
+// would let someone route around it entirely.
+const HIDDEN_ON = ["/login", "/verify-otp", "/forgot-password", "/reset-password"];
 const HIDDEN_PREFIXES = ["/test/"];
 
 export function AppHeader() {
@@ -28,8 +29,8 @@ export function AppHeader() {
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    setFullName(sessionStorage.getItem("fullName"));
-    setRole(sessionStorage.getItem("role"));
+    setFullName(getFullName());
+    setRole(getRole());
   }, [pathname]);
 
   if (HIDDEN_ON.includes(pathname) || HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) {
@@ -44,7 +45,7 @@ export function AppHeader() {
       // Clearing local session state still logs the user out client-side
       // even if the network call to invalidate the refresh cookie fails.
     }
-    sessionStorage.clear();
+    clearSession();
     router.push("/login");
   }
 

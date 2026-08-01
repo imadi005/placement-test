@@ -7,13 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { CreateTestModal } from "@/components/coordinator/CreateTestModal";
 import { TestStatusBadge } from "@/components/coordinator/TestStatusBadge";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface TestRow {
   id: string;
@@ -33,7 +29,7 @@ export default function CoordinatorHomePage() {
 
   async function loadTests() {
     try {
-      const res = await fetch(`${API_URL}/tests`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/tests`);
       if (res.ok) setTests(await res.json());
       else setError("Couldn't load tests.");
     } catch {
@@ -53,7 +49,7 @@ export default function CoordinatorHomePage() {
   }, [ready]);
 
   async function startTest(testId: string) {
-    const res = await fetch(`${API_URL}/tests/${testId}/start`, { method: "POST", headers: authHeaders() });
+    const res = await authFetch(`${API_URL}/tests/${testId}/start`, { method: "POST" });
     if (res.ok) {
       await loadTests();
     } else {
@@ -63,7 +59,7 @@ export default function CoordinatorHomePage() {
   }
 
   async function stopTest(testId: string) {
-    const res = await fetch(`${API_URL}/tests/${testId}/stop`, { method: "POST", headers: authHeaders() });
+    const res = await authFetch(`${API_URL}/tests/${testId}/stop`, { method: "POST" });
     if (res.ok) await loadTests();
     else setError("Couldn't stop the test.");
   }

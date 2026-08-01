@@ -8,13 +8,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LiveMonitoringTable, LiveStudentRow } from "@/components/coordinator/LiveMonitoringTable";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "live") return <Badge tone="crimson">LIVE</Badge>;
@@ -44,7 +40,7 @@ export default function CoordinatorLiveMonitoringPage() {
   // 1200 concurrent, switch to incremental patches keyed by attemptId.
   const refreshSnapshot = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/tests/${testId}/live-status`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/tests/${testId}/live-status`);
       if (res.ok) {
         const data = await res.json();
         setRows(data.students);
@@ -61,7 +57,7 @@ export default function CoordinatorLiveMonitoringPage() {
     if (!ready) return;
     async function loadTest() {
       try {
-        const res = await fetch(`${API_URL}/tests/${testId}`, { headers: authHeaders() });
+        const res = await authFetch(`${API_URL}/tests/${testId}`);
         if (res.ok) {
           const test = await res.json();
           setTestStatus(test.status);

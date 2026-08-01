@@ -5,17 +5,26 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/AuthCard";
+import { PasswordStrengthMeter, passwordMeetsRules } from "@/components/auth/PasswordStrengthMeter";
+import { setSession } from "@/lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+const ROLE_HOME: Record<string, string> = {
+  student: "/dashboard",
+  coordinator: "/coordinator",
+  admin: "/admin",
+};
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,17 +34,12 @@ function ResetPasswordForm() {
       setError("This reset link is missing its token — request a new one.");
       return;
     }
-
-    const form = new FormData(e.currentTarget);
-    const newPassword = String(form.get("newPassword"));
-    const confirmPassword = String(form.get("confirmPassword"));
-
     if (newPassword !== confirmPassword) {
       setError("Passwords don't match.");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (!passwordMeetsRules(newPassword)) {
+      setError("Password doesn't meet all the requirements below yet.");
       return;
     }
 
@@ -44,6 +48,7 @@ function ResetPasswordForm() {
       const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // stores the httpOnly refresh cookie for the auto-login below
         body: JSON.stringify({ token, newPassword }),
       });
       if (!res.ok) {
@@ -51,8 +56,11 @@ function ResetPasswordForm() {
         setError(body?.message ?? "This reset link is invalid or has expired.");
         return;
       }
-      setDone(true);
-      setTimeout(() => router.push("/login"), 2000);
+      const data = await res.json();
+      // Just proved ownership of this account (OTP or emailed link) and set
+      // a real password — no reason to make them type credentials again.
+      setSession(data.accessToken, data.user.role, data.user.fullName);
+      router.push(ROLE_HOME[data.user.role] ?? "/login");
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
     } finally {
@@ -62,11 +70,7 @@ function ResetPasswordForm() {
 
   return (
     <AuthCard title="Choose a new password">
-      {done ? (
-        <p className="animate-fade-in text-body-md text-on-surface">
-          Password updated — taking you to sign in…
-        </p>
-      ) : !token ? (
+      {!token ? (
         <p className="text-body-md text-error">
           This link is missing its token.{" "}
           <a href="/forgot-password" className="underline underline-offset-2">
@@ -83,10 +87,13 @@ function ResetPasswordForm() {
               type="password"
               autoComplete="new-password"
               required
-              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               placeholder="••••••••"
             />
           </label>
+
+          <PasswordStrengthMeter password={newPassword} />
 
           <label className="flex flex-col gap-1.5">
             <span className="text-label-caps text-on-surface-variant">Confirm password</span>
@@ -95,7 +102,8 @@ function ResetPasswordForm() {
               type="password"
               autoComplete="new-password"
               required
-              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
             />
           </label>

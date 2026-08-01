@@ -5,15 +5,11 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { QuestionReviewCard, EditableQuestion } from "@/components/questions/QuestionReviewCard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-function authHeaders(json = true) {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (json) headers["Content-Type"] = "application/json";
-  return headers;
-}
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 interface Props {
   onClose: () => void;
@@ -47,9 +43,9 @@ export function CreateTestModal({ onClose, onDone }: Props) {
       setError("Give the test a title first.");
       return null;
     }
-    const res = await fetch(`${API_URL}/tests`, {
+    const res = await authFetch(`${API_URL}/tests`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ title, batchScope, durationMinutes }),
     });
     if (!res.ok) {
@@ -73,9 +69,8 @@ export function CreateTestModal({ onClose, onDone }: Props) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${API_URL}/tests/${id}/questions/parse-preview`, {
+      const res = await authFetch(`${API_URL}/tests/${id}/questions/parse-preview`, {
         method: "POST",
-        headers: authHeaders(false),
         body: formData,
       });
       if (!res.ok) {
@@ -129,15 +124,14 @@ export function CreateTestModal({ onClose, onDone }: Props) {
   // "approve" affordance in this UI. Reviewing the cards below is the
   // approval; clicking Start/Schedule finalizes it.
   async function commitAndApprove(id: string) {
-    const commitRes = await fetch(`${API_URL}/tests/${id}/questions/commit`, {
+    const commitRes = await authFetch(`${API_URL}/tests/${id}/questions/commit`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ questions }),
     });
     if (!commitRes.ok) throw new Error("Couldn't save the question set.");
-    const approveRes = await fetch(`${API_URL}/tests/${id}/approve-questions`, {
+    const approveRes = await authFetch(`${API_URL}/tests/${id}/approve-questions`, {
       method: "POST",
-      headers: authHeaders(false),
     });
     if (!approveRes.ok) throw new Error("Couldn't approve the question set.");
   }
@@ -148,7 +142,7 @@ export function CreateTestModal({ onClose, onDone }: Props) {
     setError(null);
     try {
       await commitAndApprove(testId);
-      const res = await fetch(`${API_URL}/tests/${testId}/start`, { method: "POST", headers: authHeaders(false) });
+      const res = await authFetch(`${API_URL}/tests/${testId}/start`, { method: "POST" });
       if (!res.ok) throw new Error("Couldn't start the test.");
       onDone();
     } catch (e) {
@@ -163,14 +157,14 @@ export function CreateTestModal({ onClose, onDone }: Props) {
     setIsSubmitting("schedule");
     setError(null);
     try {
-      const patchRes = await fetch(`${API_URL}/tests/${testId}`, {
+      const patchRes = await authFetch(`${API_URL}/tests/${testId}`, {
         method: "PATCH",
-        headers: authHeaders(),
+        headers: JSON_HEADERS,
         body: JSON.stringify({ scheduledStart: new Date(`${date}T${time}`).toISOString() }),
       });
       if (!patchRes.ok) throw new Error("Couldn't set the schedule time.");
       await commitAndApprove(testId);
-      const res = await fetch(`${API_URL}/tests/${testId}/schedule`, { method: "POST", headers: authHeaders(false) });
+      const res = await authFetch(`${API_URL}/tests/${testId}/schedule`, { method: "POST" });
       if (!res.ok) throw new Error("Couldn't schedule the test.");
       onDone();
     } catch (e) {

@@ -6,13 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { LeaderboardTable, LeaderboardEntry, OverallWinnerBanner } from "@/components/test/LeaderboardTable";
 import { ProblemWinnersCard, ProblemWinner } from "@/components/test/ProblemWinnersCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-function authHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  return { Authorization: `Bearer ${token}` };
-}
 
 interface Leaderboard {
   testTitle: string;
@@ -34,7 +30,7 @@ export default function CoordinatorLeaderboardPage() {
   useEffect(() => {
     if (!ready) return;
     async function load() {
-      const res = await fetch(`${API_URL}/tests/${testId}/leaderboard`, { headers: authHeaders() });
+      const res = await authFetch(`${API_URL}/tests/${testId}/leaderboard`);
       if (res.ok) setData(await res.json());
       else setError("Couldn't load the leaderboard for this test.");
     }

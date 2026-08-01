@@ -6,15 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { QuestionReviewCard, EditableQuestion } from "@/components/questions/QuestionReviewCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-function authHeaders(json = true) {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (json) headers["Content-Type"] = "application/json";
-  return headers;
-}
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export default function QuestionReviewPage() {
   const ready = useAuthGuard(["coordinator"]);
@@ -36,7 +32,7 @@ export default function QuestionReviewPage() {
     if (!ready) return;
     async function loadExisting() {
       try {
-        const res = await fetch(`${API_URL}/tests/${testId}/questions`, { headers: authHeaders() });
+        const res = await authFetch(`${API_URL}/tests/${testId}/questions`);
         if (res.ok) {
           const existing: Array<{
             questionText: string;
@@ -96,9 +92,8 @@ export default function QuestionReviewPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch(`${API_URL}/tests/${testId}/questions/parse-preview`, {
+      const res = await authFetch(`${API_URL}/tests/${testId}/questions/parse-preview`, {
         method: "POST",
-        headers: authHeaders(false),
         body: formData,
       });
 
@@ -160,9 +155,9 @@ export default function QuestionReviewPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/tests/${testId}/questions/commit`, {
+      const res = await authFetch(`${API_URL}/tests/${testId}/questions/commit`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: JSON_HEADERS,
         body: JSON.stringify({ questions }),
       });
 
@@ -172,9 +167,8 @@ export default function QuestionReviewPage() {
         return;
       }
 
-      const approveRes = await fetch(`${API_URL}/tests/${testId}/approve-questions`, {
+      const approveRes = await authFetch(`${API_URL}/tests/${testId}/approve-questions`, {
         method: "POST",
-        headers: authHeaders(false),
       });
       if (!approveRes.ok) {
         setError("Questions saved, but couldn't mark them approved. Try again.");
