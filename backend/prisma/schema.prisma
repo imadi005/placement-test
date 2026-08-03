@@ -289,6 +289,7 @@ model AttemptAnswer {
   gradedBy         User?           @relation("gradedBy", fields: [gradedById], references: [id])
   gradedAt         DateTime?       @map("graded_at")
   answeredAt       DateTime?       @map("answered_at")
+  markedForReview  Boolean         @default(false) @map("marked_for_review")
 
   @@unique([attemptId, questionId])
   @@map("attempt_answers")

@@ -13,6 +13,7 @@ import { QuestionsModule } from "./questions/questions.module";
 import { AttemptsModule } from "./attempts/attempts.module";
 import { GatewayModule } from "./gateway/gateway.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { AppController } from "./app.controller";
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
     GatewayModule,
     AnalyticsModule,
   ],
+  controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

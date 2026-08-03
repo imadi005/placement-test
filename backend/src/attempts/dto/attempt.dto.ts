@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID } from "class-validator";
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class SubmitAnswerDto {
   @IsUUID()
@@ -19,6 +19,10 @@ export class SubmitAnswerDto {
   @IsOptional()
   @IsIn(["c", "cpp", "java", "python"])
   codeLanguage?: string; // for coding questions — which language submittedCode is in
+
+  @IsOptional()
+  @IsBoolean()
+  markedForReview?: boolean;
 }
 
 export class RunCodeDto {

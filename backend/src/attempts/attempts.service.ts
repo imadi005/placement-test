@@ -128,6 +128,7 @@ export class AttemptsService {
         freeTextAnswer: true,
         submittedCode: true,
         codeLanguage: true,
+        markedForReview: true,
       },
     });
 
@@ -186,6 +187,7 @@ export class AttemptsService {
         submittedCode: dto.submittedCode,
         codeLanguage: dto.codeLanguage,
         answeredAt: new Date(),
+        markedForReview: dto.markedForReview ?? false,
       },
       update: {
         selectedOptionId: dto.selectedOptionId,
@@ -193,6 +195,11 @@ export class AttemptsService {
         submittedCode: dto.submittedCode,
         codeLanguage: dto.codeLanguage,
         answeredAt: new Date(),
+        // Only touch the flag when the caller actually sent one — a plain
+        // content autosave (typing code, picking an option) must not
+        // silently clear a mark the student set earlier from a different
+        // request.
+        ...(dto.markedForReview !== undefined ? { markedForReview: dto.markedForReview } : {}),
       },
     });
   }

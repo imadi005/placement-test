@@ -37,6 +37,18 @@ function formatArgs(rawInput: string, parameters: { name: string; type: string }
   }
 }
 
+// The literal invocation LeetCode shows above each example, e.g.
+// `twoSum([2,7,11,15], 9)` — real values, no param names.
+function formatCall(functionName: string, rawInput: string): string {
+  try {
+    const args = JSON.parse(rawInput);
+    if (!Array.isArray(args)) return `${functionName}(${rawInput})`;
+    return `${functionName}(${args.map((v) => JSON.stringify(v)).join(", ")})`;
+  } catch {
+    return `${functionName}(${rawInput})`;
+  }
+}
+
 function formatReturn(rawOutput: string): string {
   try {
     return JSON.stringify(JSON.parse(rawOutput));
@@ -174,6 +186,9 @@ export function CodingQuestionCard({
                       </Badge>
                     )}
                   </div>
+                  <pre className="mb-2 whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-mono text-body-sm text-on-surface">
+                    {formatCall(problem.functionName, tc.input)}
+                  </pre>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
                       <p className="text-label-caps text-on-surface-variant">Input</p>

@@ -104,6 +104,33 @@ export class TestsService {
     return this.prisma.test.update({ where: { id }, data: { status: "ended" } });
   }
 
+  // Cascading delete in FK-safe order: Violation has a RESTRICT relation to
+  // TestAttempt, so violations must go first; everything else follows the
+  // same dependency chain down to the Test row itself.
+  async remove(id: string) {
+    const test = await this.prisma.test.findUnique({ where: { id } });
+    if (!test) throw new NotFoundException("Test not found");
+
+    const attemptIds = (
+      await this.prisma.testAttempt.findMany({ where: { testId: id }, select: { id: true } })
+    ).map((a) => a.id);
+    const questionIds = (
+      await this.prisma.question.findMany({ where: { testId: id }, select: { id: true } })
+    ).map((q) => q.id);
+
+    await this.prisma.violation.deleteMany({ where: { attemptId: { in: attemptIds } } });
+    await this.prisma.codingSubmission.deleteMany({ where: { attemptId: { in: attemptIds } } });
+    await this.prisma.attemptAnswer.deleteMany({ where: { attemptId: { in: attemptIds } } });
+    await this.prisma.testAttempt.deleteMany({ where: { testId: id } });
+    await this.prisma.codingTestCase.deleteMany({ where: { codingProblem: { questionId: { in: questionIds } } } });
+    await this.prisma.codingProblem.deleteMany({ where: { questionId: { in: questionIds } } });
+    await this.prisma.questionOption.deleteMany({ where: { questionId: { in: questionIds } } });
+    await this.prisma.question.deleteMany({ where: { testId: id } });
+    await this.prisma.test.delete({ where: { id } });
+
+    return { success: true };
+  }
+
   // Snapshot for the coordinator's live monitoring screen's initial load —
   // real-time updates after this come from the WebSocket gateway's
   // `test:event` relay, this is just what populates the table on page load.

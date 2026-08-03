@@ -64,6 +64,15 @@ export default function CoordinatorHomePage() {
     else setError("Couldn't stop the test.");
   }
 
+  async function deleteTest(testId: string, title: string) {
+    if (!window.confirm(`Delete "${title}"? This permanently removes its questions, attempts, and submissions. This cannot be undone.`)) {
+      return;
+    }
+    const res = await authFetch(`${API_URL}/tests/${testId}`, { method: "DELETE" });
+    if (res.ok) await loadTests();
+    else setError("Couldn't delete the test.");
+  }
+
   if (!ready) return null;
 
   return (
@@ -126,6 +135,9 @@ export default function CoordinatorHomePage() {
                   Leaderboard
                 </Button>
               )}
+              <Button variant="danger" onClick={() => deleteTest(t.id, t.title)}>
+                Delete
+              </Button>
             </div>
           </Card>
         ))}

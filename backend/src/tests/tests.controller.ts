@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -76,5 +76,11 @@ export class TestsController {
   @Roles("coordinator")
   stop(@Param("id") id: string) {
     return this.testsService.stop(id);
+  }
+
+  @Delete(":id")
+  @Roles("coordinator", "admin")
+  remove(@Param("id") id: string) {
+    return this.testsService.remove(id);
   }
 }

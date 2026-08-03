@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { TestHeader } from "@/components/test/TestHeader";
 import { QuestionCard, Option } from "@/components/test/QuestionCard";
 import { CodingQuestionCard, CodingProblemView } from "@/components/test/CodingQuestionCard";
+import { QuestionPalette, QuestionStatus } from "@/components/test/QuestionPalette";
+import { SubmitConfirmModal } from "@/components/test/SubmitConfirmModal";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -55,6 +57,13 @@ export default function LiveTestPage() {
   // from without submitting is a this-session-only convenience, not a
   // second persisted draft.
   const [codeAnswers, setCodeAnswers] = useState<Record<string, { language: string; byLanguage: Record<string, string> }>>({});
+  const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({});
+  // Distinct from "answered" — a question the student opened but left blank
+  // is "not answered" (red), one they never opened at all is "not visited"
+  // (gray), the standard exam-portal distinction.
+  const [visited, setVisited] = useState<Record<string, boolean>>({});
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const durationSecondsRef = useRef(0);
@@ -89,14 +98,17 @@ export default function LiveTestPage() {
         selectedOptionId: string | null;
         submittedCode: string | null;
         codeLanguage: string | null;
+        markedForReview: boolean;
       }[] = data.existingAnswers ?? [];
       const restoredOptions: Record<string, string> = {};
       const restoredCode: Record<string, { language: string; byLanguage: Record<string, string> }> = {};
+      const restoredMarks: Record<string, boolean> = {};
       for (const a of existing) {
         if (a.selectedOptionId) restoredOptions[a.questionId] = a.selectedOptionId;
         if (a.submittedCode && a.codeLanguage) {
           restoredCode[a.questionId] = { language: a.codeLanguage, byLanguage: { [a.codeLanguage]: a.submittedCode } };
         }
+        if (a.markedForReview) restoredMarks[a.questionId] = true;
       }
       // LeetCode-style now: starterCode is always just the function stub
       // (never a full solution — the judge calls the student's function by
@@ -113,6 +125,8 @@ export default function LiveTestPage() {
       }
       setAnswers(restoredOptions);
       setCodeAnswers(restoredCode);
+      setMarkedForReview(restoredMarks);
+      if (loadedQuestions.length > 0) setVisited({ [loadedQuestions[0].id]: true });
 
       const durationMinutes = data.attempt.durationMinutes ?? 40;
       durationSecondsRef.current = durationMinutes * 60;
@@ -209,6 +223,46 @@ export default function LiveTestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId]);
 
+  function goToIndex(index: number) {
+    const clamped = Math.max(0, Math.min(questions.length - 1, index));
+    setCurrentIndex(clamped);
+    const targetId = questions[clamped]?.id;
+    if (targetId) setVisited((prev) => ({ ...prev, [targetId]: true }));
+  }
+
+  function toggleMarkForReview(questionId: string) {
+    const next = !markedForReview[questionId];
+    setMarkedForReview((prev) => ({ ...prev, [questionId]: next }));
+    if (!attemptId) return;
+    authFetch(`${API_URL}/attempts/${attemptId}/answers`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ questionId, markedForReview: next }),
+    }).catch(() => {});
+  }
+
+  // MCQ: an option is selected. Coding: the student changed something from
+  // the starter stub (a blank/untouched editor shouldn't count as answered).
+  function isAnswered(q: BackendQuestion): boolean {
+    if (q.questionType === "coding" && q.codingProblem) {
+      const entry = codeAnswers[q.id];
+      if (!entry) return false;
+      const code = entry.byLanguage[entry.language] ?? "";
+      const starter = (q.codingProblem.starterCode as Record<string, string>)[entry.language] ?? "";
+      return code.trim() !== "" && code !== starter;
+    }
+    return Boolean(answers[q.id]);
+  }
+
+  function statusFor(index: number): QuestionStatus {
+    const q = questions[index];
+    if (!q) return "not_visited";
+    if (markedForReview[q.id]) return "marked";
+    if (isAnswered(q)) return "answered";
+    if (visited[q.id]) return "not_answered";
+    return "not_visited";
+  }
+
   async function selectOption(questionId: string, optionId: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
     if (!attemptId) return;
@@ -286,6 +340,7 @@ export default function LiveTestPage() {
 
   async function handleSubmit(reason: "manual" | "timeout" = "manual") {
     if (!attemptId) return;
+    setIsSubmitting(true);
     try {
       // Flush any code edits still waiting on their debounce timer so the
       // last few keystrokes before submit aren't lost.
@@ -309,6 +364,7 @@ export default function LiveTestPage() {
         method: "POST",
       });
     } finally {
+      setIsSubmitting(false);
       await exitFullscreenAndGo(`/results/${attemptId}`);
     }
   }
@@ -359,7 +415,12 @@ export default function LiveTestPage() {
   }));
   // Coding questions get a much wider column — an IDE-style split view
   // doesn't fit in the narrow single-question reading width MCQs use.
-  const containerWidthClass = isCoding ? "max-w-6xl" : "max-w-test-column";
+  const containerWidthClass = isCoding ? "max-w-7xl" : "max-w-5xl";
+  const isMarked = Boolean(markedForReview[question.id]);
+
+  const answeredCount = questions.filter((q) => isAnswered(q)).length;
+  const markedCount = questions.filter((q) => markedForReview[q.id]).length;
+  const notAnsweredCount = questions.length - answeredCount;
 
   return (
     <main className={`mx-auto min-h-screen ${containerWidthClass} px-4 pb-24`}>
@@ -370,56 +431,77 @@ export default function LiveTestPage() {
         isLowTime={isLowTime}
       />
 
-      <div className="mt-6">
-        {isCoding && question.codingProblem ? (
-          <CodingQuestionCard
-            topic={`Question ${question.questionOrder}`}
-            questionText={question.questionText}
-            problem={question.codingProblem}
-            language={codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"}
-            code={
-              codeAnswers[question.id]?.byLanguage[
-                codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"
-              ] ??
-              question.codingProblem.starterCode[question.codingProblem.allowedLanguages[0] ?? "python"] ??
-              ""
-            }
-            onLanguageChange={(language) => handleLanguageChange(question.id, language)}
-            onCodeChange={(code) => handleCodeChange(question.id, code)}
-            onPasteDetected={() => reportViolation("copy_paste")}
-            onRun={(sourceCode, language) => handleRunCode(question.id, sourceCode, language)}
+      <div className="mt-6 lg:grid lg:grid-cols-[1fr_240px] lg:items-start lg:gap-6">
+        <div>
+          {isCoding && question.codingProblem ? (
+            <CodingQuestionCard
+              topic={`Question ${question.questionOrder}`}
+              questionText={question.questionText}
+              problem={question.codingProblem}
+              language={codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"}
+              code={
+                codeAnswers[question.id]?.byLanguage[
+                  codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"
+                ] ??
+                question.codingProblem.starterCode[question.codingProblem.allowedLanguages[0] ?? "python"] ??
+                ""
+              }
+              onLanguageChange={(language) => handleLanguageChange(question.id, language)}
+              onCodeChange={(code) => handleCodeChange(question.id, code)}
+              onPasteDetected={() => reportViolation("copy_paste")}
+              onRun={(sourceCode, language) => handleRunCode(question.id, sourceCode, language)}
+            />
+          ) : (
+            <QuestionCard
+              topic={`Question ${question.questionOrder}`}
+              questionText={question.questionText}
+              options={options}
+              selectedOptionId={answers[question.id] ?? null}
+              onSelect={(optionId) => selectOption(question.id, optionId)}
+            />
+          )}
+        </div>
+
+        <div className="mt-6 lg:mt-0">
+          <QuestionPalette
+            total={questions.length}
+            currentIndex={currentIndex}
+            statusFor={statusFor}
+            onJump={goToIndex}
           />
-        ) : (
-          <QuestionCard
-            topic={`Question ${question.questionOrder}`}
-            questionText={question.questionText}
-            options={options}
-            selectedOptionId={answers[question.id] ?? null}
-            onSelect={(optionId) => selectOption(question.id, optionId)}
-          />
-        )}
+        </div>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 border-t border-outline-variant bg-background/90 shadow-soft-ink-lg backdrop-blur-sm">
-        <div className={`mx-auto flex ${containerWidthClass} items-center justify-between px-4 py-4`}>
-          <Button
-            variant="ghost"
-            disabled={currentIndex === 0}
-            onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-          >
+        <div className={`mx-auto flex ${containerWidthClass} items-center justify-between gap-2 px-4 py-4`}>
+          <Button variant="ghost" disabled={currentIndex === 0} onClick={() => goToIndex(currentIndex - 1)}>
             ← Previous
           </Button>
-          {currentIndex === questions.length - 1 ? (
-            <Button variant="primary" onClick={() => handleSubmit("manual")}>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => toggleMarkForReview(question.id)}>
+              {isMarked ? "Marked ✓" : "Mark for review"}
+            </Button>
+            {currentIndex < questions.length - 1 && (
+              <Button onClick={() => goToIndex(currentIndex + 1)}>Save & next →</Button>
+            )}
+            <Button variant="primary" onClick={() => setShowSubmitModal(true)}>
               Submit test
             </Button>
-          ) : (
-            <Button onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}>
-              Save & next →
-            </Button>
-          )}
+          </div>
         </div>
       </div>
+
+      {showSubmitModal && (
+        <SubmitConfirmModal
+          total={questions.length}
+          answered={answeredCount}
+          notAnswered={notAnsweredCount}
+          marked={markedCount}
+          isSubmitting={isSubmitting}
+          onCancel={() => setShowSubmitModal(false)}
+          onConfirm={() => handleSubmit("manual")}
+        />
+      )}
     </main>
   );
 }
