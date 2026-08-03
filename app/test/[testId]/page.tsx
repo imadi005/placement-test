@@ -46,7 +46,15 @@ export default function LiveTestPage() {
   const [questions, setQuestions] = useState<BackendQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> selected optionId
-  const [codeAnswers, setCodeAnswers] = useState<Record<string, { code: string; language: string }>>({});
+  // `byLanguage` keeps each language's own buffer, so switching tabs (C ->
+  // Python -> C) never loses or overwrites what the student wrote in
+  // another language — same as a real LeetCode "language" selector. Only
+  // the currently-selected language's code is ever sent to the backend
+  // (AttemptAnswer stores exactly one submittedCode/codeLanguage pair per
+  // question), so anything typed in a language the student switches away
+  // from without submitting is a this-session-only convenience, not a
+  // second persisted draft.
+  const [codeAnswers, setCodeAnswers] = useState<Record<string, { language: string; byLanguage: Record<string, string> }>>({});
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const durationSecondsRef = useRef(0);
@@ -83,22 +91,24 @@ export default function LiveTestPage() {
         codeLanguage: string | null;
       }[] = data.existingAnswers ?? [];
       const restoredOptions: Record<string, string> = {};
-      const restoredCode: Record<string, { code: string; language: string }> = {};
+      const restoredCode: Record<string, { language: string; byLanguage: Record<string, string> }> = {};
       for (const a of existing) {
         if (a.selectedOptionId) restoredOptions[a.questionId] = a.selectedOptionId;
         if (a.submittedCode && a.codeLanguage) {
-          restoredCode[a.questionId] = { code: a.submittedCode, language: a.codeLanguage };
+          restoredCode[a.questionId] = { language: a.codeLanguage, byLanguage: { [a.codeLanguage]: a.submittedCode } };
         }
       }
-      // Every coding question starts with a blank editor — never
-      // pre-filled with the coordinator's starter code (which, until a
-      // real judge is wired up in phase 2, has no guarantee of being mere
-      // scaffolding rather than the actual solution) — unless the student
-      // already has a saved draft for it.
+      // LeetCode-style now: starterCode is always just the function stub
+      // (never a full solution — the judge calls the student's function by
+      // name/signature, so there's nothing to "give away" by pre-filling
+      // it), so every coding question opens with it pre-filled, same as a
+      // real LeetCode problem — unless the student already has a saved
+      // draft for it.
       for (const q of loadedQuestions) {
         if (q.questionType === "coding" && q.codingProblem && !restoredCode[q.id]) {
           const language = q.codingProblem.allowedLanguages[0] ?? "python";
-          restoredCode[q.id] = { code: "", language };
+          const starterCode = q.codingProblem.starterCode as Record<string, string>;
+          restoredCode[q.id] = { language, byLanguage: { [language]: starterCode[language] ?? "" } };
         }
       }
       setAnswers(restoredOptions);
@@ -233,14 +243,34 @@ export default function LiveTestPage() {
   }
 
   function handleCodeChange(questionId: string, code: string) {
-    setCodeAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], code } }));
     const language = codeAnswers[questionId]?.language ?? "python";
+    setCodeAnswers((prev) => ({
+      ...prev,
+      [questionId]: {
+        language,
+        byLanguage: { ...prev[questionId]?.byLanguage, [language]: code },
+      },
+    }));
     saveCodeAnswer(questionId, code, language);
   }
 
   function handleLanguageChange(questionId: string, language: string) {
-    setCodeAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], language } }));
-    saveCodeAnswer(questionId, codeAnswers[questionId]?.code ?? "", language);
+    // Switching tabs — if this language has no buffer yet this session,
+    // seed it from starterCode (the function stub) rather than leaving it
+    // blank or carrying over whatever was typed in the PREVIOUS language.
+    const question = questions.find((q) => q.id === questionId);
+    const starterCode = (question?.codingProblem?.starterCode ?? {}) as Record<string, string>;
+    const existing = codeAnswers[questionId]?.byLanguage[language];
+    const code = existing ?? starterCode[language] ?? "";
+
+    setCodeAnswers((prev) => ({
+      ...prev,
+      [questionId]: {
+        language,
+        byLanguage: { ...prev[questionId]?.byLanguage, [language]: code },
+      },
+    }));
+    saveCodeAnswer(questionId, code, language);
   }
 
   async function handleRunCode(questionId: string, sourceCode: string, language: string) {
@@ -267,7 +297,11 @@ export default function LiveTestPage() {
         await authFetch(`${API_URL}/attempts/${attemptId}/answers`, {
           method: "POST",
           headers: JSON_HEADERS,
-          body: JSON.stringify({ questionId, submittedCode: entry.code, codeLanguage: entry.language }),
+          body: JSON.stringify({
+            questionId,
+            submittedCode: entry.byLanguage[entry.language] ?? "",
+            codeLanguage: entry.language,
+          }),
         }).catch(() => {});
       }
 
@@ -344,7 +378,9 @@ export default function LiveTestPage() {
             problem={question.codingProblem}
             language={codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"}
             code={
-              codeAnswers[question.id]?.code ??
+              codeAnswers[question.id]?.byLanguage[
+                codeAnswers[question.id]?.language ?? question.codingProblem.allowedLanguages[0] ?? "python"
+              ] ??
               question.codingProblem.starterCode[question.codingProblem.allowedLanguages[0] ?? "python"] ??
               ""
             }
