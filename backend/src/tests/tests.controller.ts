@@ -27,7 +27,7 @@ export class TestsController {
       if (!student) throw new NotFoundException("Student profile not found");
       return this.testsService.findVisibleForStudent(student.batch);
     }
-    return this.testsService.findAllForStaff();
+    return this.testsService.findAllForStaff(user.id);
   }
 
   @Get(":id")

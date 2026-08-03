@@ -42,10 +42,20 @@ export class TestsService {
   // schedule yet and was sorting to the bottom/randomly instead of to top).
   // Every coordinator sees the same shared list — except tests created
   // under the priya.menon@kju.edu demo/test account, which are excluded
-  // here so real coordinators aren't seeing dev/QA clutter.
-  async findAllForStaff() {
+  // here so real coordinators aren't seeing dev/QA clutter. That exclusion
+  // must not apply when Priya herself is the one asking — she still needs
+  // to see (and monitor/schedule) her own tests; `requesterId` is how the
+  // controller tells us who's actually looking.
+  async findAllForStaff(requesterId?: string) {
+    // An empty `{ createdById: undefined }` filter would collapse to "match
+    // everything" and defeat the exclusion entirely — only add the
+    // self-exception clause when there's an actual id to match.
+    const or = requesterId
+      ? [{ createdBy: { email: { not: "priya.menon@kju.edu" } } }, { createdById: requesterId }]
+      : [{ createdBy: { email: { not: "priya.menon@kju.edu" } } }];
+
     return this.prisma.test.findMany({
-      where: { createdBy: { email: { not: "priya.menon@kju.edu" } } },
+      where: { OR: or },
       orderBy: { createdAt: "desc" },
     });
   }
