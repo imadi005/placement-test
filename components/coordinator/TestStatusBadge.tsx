@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 interface Props {
   status: string;
   scheduledStart: string | null;
+  startedAt: string | null;
   now: number;
 }
 
@@ -27,9 +28,14 @@ function formatCountdown(ms: number) {
 // coordinator glancing at the dashboard. Ticks live (mm:ss) for a running
 // test because `now` is refreshed by the parent every second — this
 // component itself doesn't poll anything.
-export function TestStatusBadge({ status, scheduledStart, now }: Props) {
+export function TestStatusBadge({ status, scheduledStart, startedAt, now }: Props) {
   if (status === "live") {
-    const startedMs = scheduledStart ? now - new Date(scheduledStart).getTime() : 0;
+    // `startedAt` is when the test actually went live — a manual "Start
+    // now" on a draft has no `scheduledStart` at all, which used to leave
+    // this stuck at 00:00 forever. Falls back to `scheduledStart` only for
+    // rows that went live before this field existed.
+    const since = startedAt ?? scheduledStart;
+    const startedMs = since ? now - new Date(since).getTime() : 0;
     return <Badge tone="crimson">Live · {formatElapsed(startedMs)}</Badge>;
   }
   if (status === "scheduled" && scheduledStart) {

@@ -119,6 +119,7 @@ model Test {
   batchScope      String     @map("batch_scope") // "A" | "B" | "C" | "ALL"
   durationMinutes Int        @map("duration_minutes")
   scheduledStart  DateTime?  @map("scheduled_start")
+  startedAt       DateTime?  @map("started_at")
   status          TestStatus @default(draft)
   createdById     String     @map("created_by")
   createdBy       User       @relation("createdBy", fields: [createdById], references: [id])

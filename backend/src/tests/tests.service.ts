@@ -97,7 +97,7 @@ export class TestsService {
     if (!test.approved) {
       throw new BadRequestException("Question set must be approved before starting");
     }
-    return this.prisma.test.update({ where: { id }, data: { status: "live" } });
+    return this.prisma.test.update({ where: { id }, data: { status: "live", startedAt: new Date() } });
   }
 
   async stop(id: string) {

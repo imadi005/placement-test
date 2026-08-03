@@ -17,6 +17,7 @@ interface TestRow {
   status: string;
   batchScope: string;
   scheduledStart: string | null;
+  startedAt: string | null;
 }
 
 export default function CoordinatorHomePage() {
@@ -97,7 +98,7 @@ export default function CoordinatorHomePage() {
               <p className="text-body-sm text-on-surface-variant">Batch scope: {t.batchScope}</p>
             </div>
             <div className="flex items-center gap-3">
-              <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} now={now} />
+              <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} startedAt={t.startedAt} now={now} />
               {t.status === "draft" && (
                 <Button
                   variant="secondary"

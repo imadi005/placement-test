@@ -27,7 +27,7 @@ export class TestSchedulerService implements OnModuleInit, OnModuleDestroy {
     try {
       const result = await this.prisma.test.updateMany({
         where: { status: "scheduled", scheduledStart: { lte: new Date() } },
-        data: { status: "live" },
+        data: { status: "live", startedAt: new Date() },
       });
       if (result.count > 0) {
         this.logger.log(`Auto-started ${result.count} scheduled test(s) whose start time arrived`);
