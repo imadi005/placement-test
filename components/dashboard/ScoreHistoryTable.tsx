@@ -1,11 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { authFetch } from "@/lib/authFetch";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export interface ScoreRow {
   attemptId: string;
@@ -15,93 +11,23 @@ export interface ScoreRow {
   status: "graded";
 }
 
-interface AttemptOption {
-  id: string;
-  optionText: string;
-  isCorrect: boolean;
-}
-interface AttemptAnswer {
-  id: string;
-  selectedOption: AttemptOption | null;
-  question: {
-    questionText: string;
-    marks: string;
-    options: AttemptOption[];
-  };
-}
-interface AttemptDetail {
-  id: string;
-  answers: AttemptAnswer[];
-}
-
-// Chevron rotates open/closed — pure CSS, no animation library needed for
-// something this simple.
-function Chevron({ open }: { open: boolean }) {
+// Chevron-turned-arrow — just a visual affordance that the row navigates
+// somewhere, not an expand/collapse toggle anymore.
+function ArrowIcon() {
   return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      className={`h-4 w-4 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-    >
-      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0 text-on-surface-variant">
+      <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function AnswerBreakdown({ answer }: { answer: AttemptAnswer }) {
-  const { question } = answer;
-  const isCorrect = Boolean(answer.selectedOption?.isCorrect);
-  const correctOption = question.options.find((o) => o.isCorrect);
-  return (
-    <div className="border-b border-outline-variant py-4 last:border-0">
-      <div className="mb-2 flex items-start justify-between gap-4">
-        <p className="text-body-md text-on-surface">{question.questionText}</p>
-        <Badge tone={isCorrect ? "sage" : "crimson"} className="shrink-0">
-          {isCorrect ? "Correct" : "Incorrect"}
-        </Badge>
-      </div>
-      <p className="text-body-sm text-on-surface-variant">
-        Your answer:{" "}
-        <span className={isCorrect ? "text-on-surface" : "font-medium text-error"}>
-          {answer.selectedOption?.optionText ?? "Not answered"}
-        </span>
-      </p>
-      {!isCorrect && correctOption && (
-        <p className="mt-1 text-body-sm text-on-surface-variant">
-          Correct answer: <span className="font-medium text-on-surface">{correctOption.optionText}</span>
-        </p>
-      )}
-    </div>
-  );
-}
-
+// Each row used to expand an inline accordion with the answer breakdown.
+// The full review page at /results/[attemptId] (already used right after a
+// student submits) is richer — score, rank, leaderboard, per-question
+// marks — so a row click now goes straight there instead of duplicating a
+// thinner version of the same data inline.
 export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [details, setDetails] = useState<Record<string, AttemptDetail>>({});
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [errorId, setErrorId] = useState<string | null>(null);
-
-  async function toggleRow(attemptId: string) {
-    if (expandedId === attemptId) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(attemptId);
-    if (details[attemptId]) return;
-
-    setLoadingId(attemptId);
-    setErrorId(null);
-    try {
-      const res = await authFetch(`${API_URL}/attempts/${attemptId}/result`);
-      if (!res.ok) throw new Error();
-      const data: AttemptDetail = await res.json();
-      setDetails((prev) => ({ ...prev, [attemptId]: data }));
-    } catch {
-      setErrorId(attemptId);
-    } finally {
-      setLoadingId(null);
-    }
-  }
+  const router = useRouter();
 
   return (
     <Card className="p-0">
@@ -114,47 +40,24 @@ export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const isOpen = expandedId === row.attemptId;
-            return (
-              <Fragment key={row.attemptId}>
-                <tr
-                  onClick={() => toggleRow(row.attemptId)}
-                  className="cursor-pointer border-b border-outline-variant transition-colors last:border-0 hover:bg-surface-container-low"
-                >
-                  <td className="min-h-14 p-4 text-body-md text-on-surface">
-                    <div className="flex items-center gap-2">
-                      <Chevron open={isOpen} />
-                      {row.testName}
-                    </div>
-                  </td>
-                  <td className="p-4 text-body-sm text-on-surface-variant">{row.dateCompleted}</td>
-                  <td className="p-4">
-                    <span className="font-serif font-semibold text-on-surface">{row.score}</span>
-                  </td>
-                </tr>
-                {isOpen && (
-                  <tr className="border-b border-outline-variant last:border-0">
-                    <td colSpan={3} className="bg-surface-container-low px-4 pb-2">
-                      {loadingId === row.attemptId && (
-                        <p className="py-4 text-body-sm text-on-surface-variant">Loading your answers…</p>
-                      )}
-                      {errorId === row.attemptId && (
-                        <p className="py-4 text-body-sm text-error">Couldn't load this attempt's answers.</p>
-                      )}
-                      {details[row.attemptId] && (
-                        <div>
-                          {details[row.attemptId].answers.map((a) => (
-                            <AnswerBreakdown key={a.id} answer={a} />
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
+          {rows.map((row) => (
+            <tr
+              key={row.attemptId}
+              onClick={() => router.push(`/results/${row.attemptId}`)}
+              className="cursor-pointer border-b border-outline-variant transition-colors last:border-0 hover:bg-surface-container-low"
+            >
+              <td className="min-h-14 p-4 text-body-md text-on-surface">
+                <div className="flex items-center gap-2">
+                  <ArrowIcon />
+                  {row.testName}
+                </div>
+              </td>
+              <td className="p-4 text-body-sm text-on-surface-variant">{row.dateCompleted}</td>
+              <td className="p-4">
+                <span className="font-serif font-semibold text-on-surface">{row.score}</span>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </Card>
