@@ -179,7 +179,14 @@ export class JudgeService {
         actualOutput: stdout,
         stderr: body.stderr ?? null,
         compileOutput: body.compile_output ?? null,
-        status: passed ? "accepted" : statusLabel(statusId),
+        // Judge0's own status id 3 just means "the program ran to
+        // completion without crashing/timing out" — it says nothing about
+        // whether the output was correct. statusLabel(3) maps to "accepted"
+        // for exactly that reason, so falling through to it here for a
+        // code-ran-but-output-didn't-match case wrongly relabeled a failed
+        // test case as "Passed" (the badge color was still correct, driven
+        // by `passed`, but the text next to it lied).
+        status: passed ? "accepted" : statusId === 3 ? "wrong_answer" : statusLabel(statusId),
         timeMs: body.time ? Math.round(Number(body.time) * 1000) : null,
         memoryKb: body.memory ? Math.round(Number(body.memory)) : null,
       };
