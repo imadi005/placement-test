@@ -1,4 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { HarnessBuilderService } from "./harness/harness-builder.service";
+import { FunctionSignature } from "./harness/harness-types";
 
 // Judge0 CE's well-known default language ids (stable across recent
 // releases, but confirm against your instance's GET /languages if in
@@ -49,17 +51,34 @@ export interface JudgeCaseResult {
   memoryKb: number | null;
 }
 
-// Trailing-whitespace/newline differences are not meaningful for a
-// competitive-judge style comparison — everything else has to match
-// exactly (never "fuzzy" beyond this, or a genuinely wrong answer could
-// pass).
-function normalizeOutput(s: string): string {
-  return s
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+$/, ""))
-    .join("\n")
-    .replace(/\n+$/, "");
+// Structural JSON comparison, not string equality — the harness prints the
+// student's function's return value as JSON, so "[0, 1]" and "[0,1]" (or any
+// other equivalent formatting) must compare equal; only the actual VALUE
+// should matter, same as a real LeetCode-style judge.
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a === "number" && typeof b === "number") {
+    // Coding problems are rarely about float precision — a tiny epsilon
+    // avoids a correct double-returning solution failing on rounding noise.
+    return Math.abs(a - b) < 1e-9;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  return false;
+}
+
+// Returns null if `raw` isn't valid JSON at all (a genuine parse failure —
+// e.g. the program crashed before printing anything) rather than throwing,
+// so a malformed/empty stdout cleanly becomes "wrong answer" instead of an
+// unhandled exception.
+function tryParseJson(raw: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(raw.trim()) };
+  } catch {
+    return { ok: false };
+  }
 }
 
 @Injectable()
@@ -67,6 +86,8 @@ export class JudgeService {
   private readonly logger = new Logger(JudgeService.name);
   private readonly baseUrl = process.env.JUDGE0_URL;
   private readonly authToken = process.env.JUDGE0_AUTH_TOKEN;
+
+  constructor(private harnessBuilder: HarnessBuilderService) {}
 
   isConfigured(): boolean {
     return Boolean(this.baseUrl);
@@ -86,12 +107,19 @@ export class JudgeService {
   // (100 students x 50 coding questions, sequential) took 5+ minutes per
   // submission; concurrent requests let Judge0's queue be the only
   // bottleneck instead of also paying our own network round-trip N times.
+  //
+  // `signature` describes the function the student implements (LeetCode
+  // style) — the student's `sourceCode` is just the function itself; the
+  // harness builder wraps it with driver code that reads a test case's JSON
+  // args from stdin, calls the function, and prints the return value as
+  // JSON (see backend/src/judge/harness/).
   async runAgainstCases(
     sourceCode: string,
     language: string,
     timeLimitMs: number,
     memoryLimitMb: number,
-    cases: JudgeCase[]
+    cases: JudgeCase[],
+    signature: FunctionSignature
   ): Promise<JudgeCaseResult[]> {
     const languageId = LANGUAGE_IDS[language];
     if (!languageId) {
@@ -127,7 +155,26 @@ export class JudgeService {
       }));
     }
 
-    return Promise.all(cases.map((testCase) => this.runOne(sourceCode, languageId, timeLimitMs, memoryLimitMb, testCase)));
+    let wrappedSource: string;
+    try {
+      wrappedSource = this.harnessBuilder.build(language, signature, sourceCode);
+    } catch (err) {
+      this.logger.error(`Harness build failed: ${(err as Error).message}`);
+      return cases.map((c) => ({
+        testCaseId: c.id,
+        isSample: c.isSample,
+        passed: false,
+        points: 0,
+        actualOutput: "",
+        stderr: null,
+        compileOutput: null,
+        status: "judge_unavailable",
+        timeMs: null,
+        memoryKb: null,
+      }));
+    }
+
+    return Promise.all(cases.map((testCase) => this.runOne(wrappedSource, languageId, timeLimitMs, memoryLimitMb, testCase)));
   }
 
   private async runOne(
@@ -138,13 +185,24 @@ export class JudgeService {
     testCase: JudgeCase
   ): Promise<JudgeCaseResult> {
     try {
-      const res = await fetch(`${this.baseUrl}/submissions?base64_encoded=false&wait=true`, {
+      // base64_encoded=true, not false — the harness-generated source can
+      // trip Judge0's own UTF-8 validation on the plain-text path (seen with
+      // a real C++ harness during testing: HTTP 200 with a
+      // `{error: "...cannot be converted to UTF-8..."}` body instead of the
+      // usual `{status, stdout, ...}` shape, which silently defaulted to
+      // "internal_error" below since nothing checked for it). Base64
+      // sidesteps that class of encoding issue entirely, per Judge0's own
+      // suggested fix.
+      const res = await fetch(`${this.baseUrl}/submissions?base64_encoded=true&wait=true`, {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify({
-          source_code: sourceCode,
+          source_code: Buffer.from(sourceCode, "utf-8").toString("base64"),
           language_id: languageId,
-          stdin: testCase.input,
+          // The test case's `input` is already the JSON args array literal
+          // (e.g. "[[2,7,11,15], 9]") — the harness reads stdin and
+          // JSON.parses it directly, no transformation needed here.
+          stdin: Buffer.from(testCase.input, "utf-8").toString("base64"),
           cpu_time_limit: timeLimitMs / 1000,
           memory_limit: memoryLimitMb * 1024, // Judge0 wants KB
         }),
@@ -167,9 +225,31 @@ export class JudgeService {
       }
 
       const body = await res.json();
+      if (body.error) {
+        // Judge0 returns 200 with this shape (not the usual {status, stdout,
+        // ...}) for a handful of request-level failures — surface it loudly
+        // instead of silently falling through to a bare "internal_error".
+        this.logger.error(`Judge0 rejected the submission for test case ${testCase.id}: ${body.error}`);
+        return {
+          testCaseId: testCase.id,
+          isSample: testCase.isSample,
+          passed: false,
+          points: 0,
+          actualOutput: "",
+          stderr: null,
+          compileOutput: null,
+          status: "judge_unavailable",
+          timeMs: null,
+          memoryKb: null,
+        };
+      }
+      const decode = (b64: string | null | undefined) => (b64 ? Buffer.from(b64, "base64").toString("utf-8") : null);
       const statusId: number = body.status?.id ?? 13;
-      const stdout = body.stdout ?? "";
-      const passed = statusId === 3 && normalizeOutput(stdout) === normalizeOutput(testCase.expectedOutput);
+      const stdout = decode(body.stdout) ?? "";
+      const actual = tryParseJson(stdout);
+      const expected = tryParseJson(testCase.expectedOutput);
+      const passed =
+        statusId === 3 && actual.ok && expected.ok && deepEqual(actual.value, expected.value);
 
       return {
         testCaseId: testCase.id,
@@ -177,8 +257,8 @@ export class JudgeService {
         passed,
         points: passed ? testCase.points : 0,
         actualOutput: stdout,
-        stderr: body.stderr ?? null,
-        compileOutput: body.compile_output ?? null,
+        stderr: decode(body.stderr),
+        compileOutput: decode(body.compile_output),
         // Judge0's own status id 3 just means "the program ran to
         // completion without crashing/timing out" — it says nothing about
         // whether the output was correct. statusLabel(3) maps to "accepted"

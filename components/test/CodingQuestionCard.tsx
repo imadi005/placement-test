@@ -18,6 +18,31 @@ export interface CodingProblemView {
   allowedLanguages: string[];
   starterCode: Record<string, string>;
   testCases: CodingSampleCase[];
+  functionName: string;
+  parameters: { name: string; type: string }[];
+}
+
+// Sample cases now carry JSON args/return value (LeetCode-style), not raw
+// stdin/stdout text — render "nums = [2,7,11,15], target = 9" against the
+// declared parameter names rather than a raw JSON blob. Falls back to the
+// raw text if parsing ever fails (shouldn't happen for a coordinator-authored
+// case, but avoids a hard crash on bad data).
+function formatArgs(rawInput: string, parameters: { name: string; type: string }[]): string {
+  try {
+    const args = JSON.parse(rawInput);
+    if (!Array.isArray(args)) return rawInput;
+    return args.map((v, i) => `${parameters[i]?.name ?? `arg${i}`} = ${JSON.stringify(v)}`).join(", ");
+  } catch {
+    return rawInput;
+  }
+}
+
+function formatReturn(rawOutput: string): string {
+  try {
+    return JSON.stringify(JSON.parse(rawOutput));
+  } catch {
+    return rawOutput;
+  }
 }
 
 export interface RunCaseResult {
@@ -120,6 +145,13 @@ export function CodingQuestionCard({
           <Badge tone="neutral">Memory limit: {problem.memoryLimitMb}MB</Badge>
         </div>
 
+        <div>
+          <p className="mb-1 text-label-caps text-on-surface-variant">Implement</p>
+          <pre className="whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-mono text-body-sm text-on-surface">
+            {problem.functionName}({problem.parameters.map((p) => p.name).join(", ")})
+          </pre>
+        </div>
+
         {problem.constraints && (
           <div>
             <p className="mb-1 text-label-caps text-on-surface-variant">Constraints</p>
@@ -146,13 +178,13 @@ export function CodingQuestionCard({
                     <div>
                       <p className="text-label-caps text-on-surface-variant">Input</p>
                       <pre className="mt-1 whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-mono text-body-sm text-on-surface">
-                        {tc.input || "—"}
+                        {formatArgs(tc.input, problem.parameters) || "—"}
                       </pre>
                     </div>
                     <div>
                       <p className="text-label-caps text-on-surface-variant">Expected output</p>
                       <pre className="mt-1 whitespace-pre-wrap rounded bg-surface-container-lowest p-2 font-mono text-body-sm text-on-surface">
-                        {tc.expectedOutput || "—"}
+                        {formatReturn(tc.expectedOutput) || "—"}
                       </pre>
                     </div>
                   </div>

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DraftCodingTestCase, DraftOption, DraftQuestion } from "./draft-question.types";
+import { DraftCodingTestCase, DraftFunctionParameter, DraftOption, DraftQuestion } from "./draft-question.types";
 
 const LANG_ALIASES: Record<string, string> = {
   c: "c",
@@ -24,28 +24,34 @@ function normalizeLang(raw: string): string | null {
 //   B) Paris
 //   Answer: B
 //
-// Coding (new — a plain-text/markdown convention, deliberately NOT prose
-// guessing, so a coordinator gets the exact same result every time they
-// upload the same file):
+// Coding (a plain-text/markdown convention, deliberately NOT prose guessing,
+// so a coordinator gets the exact same result every time they upload the
+// same file) — LeetCode-style: the student implements FUNCTION only, and
+// SAMPLE/HIDDEN INPUT/OUTPUT are JSON literals (args array / return value),
+// not raw stdin/stdout text:
 //   2. [CODING]
 //   STATEMENT:
-//   Given an array of n integers, print the sum of all elements.
+//   Given an array of integers nums and a target, return the indices of
+//   the two numbers that add up to target.
 //   CONSTRAINTS:
-//   1 <= n <= 100
+//   2 <= nums.length <= 1000
 //   LANGUAGES: c, cpp, java, python
+//   FUNCTION: twoSum
+//   PARAMETERS:
+//   nums: int[]
+//   target: int
+//   RETURNS: int[]
 //   SAMPLE INPUT 1:
-//   3
-//   1 2 3
+//   [[2,7,11,15], 9]
 //   SAMPLE OUTPUT 1:
-//   6
+//   [0,1]
 //   HIDDEN INPUT 1:
-//   5
-//   1 1 1 1 1
+//   [[3,2,4], 6]
 //   HIDDEN OUTPUT 1:
-//   5
+//   [1,2]
 //   STARTER PYTHON:
-//   n = int(input())
-//   ...
+//   def twoSum(nums, target):
+//       pass
 //
 // This is a first-pass heuristic, not a guarantee — every result carries
 // `parseWarning` when something looks off (no options/test cases found, no
@@ -179,17 +185,23 @@ export class QuestionExtractionService {
       { re: /^STATEMENT\s*:\s*$/i, kind: "statement" },
       { re: /^CONSTRAINTS\s*:\s*$/i, kind: "constraints" },
       { re: /^LANGUAGES\s*:\s*(.*)$/i, kind: "languages" },
+      { re: /^FUNCTION\s*:\s*(.*)$/i, kind: "function" },
+      { re: /^PARAMETERS\s*:\s*$/i, kind: "parameters" },
+      { re: /^RETURNS\s*:\s*(.*)$/i, kind: "returns" },
       { re: /^SAMPLE\s+INPUT\s+(\d+)\s*:\s*$/i, kind: "sample_input" },
       { re: /^SAMPLE\s+OUTPUT\s+(\d+)\s*:\s*$/i, kind: "sample_output" },
       { re: /^HIDDEN\s+INPUT\s+(\d+)\s*:\s*$/i, kind: "hidden_input" },
       { re: /^HIDDEN\s+OUTPUT\s+(\d+)\s*:\s*$/i, kind: "hidden_output" },
       { re: /^STARTER\s+([A-Za-z+]+)\s*:\s*$/i, kind: "starter" },
     ];
+    // Headers whose value is on the SAME line ("LANGUAGES: c, cpp") rather
+    // than a multi-line block below it ("STATEMENT:\n...").
+    const INLINE_KINDS = new Set(["languages", "function", "returns"]);
 
     type Section = { kind: string; key?: string; lines: string[] };
     const sections: Section[] = [];
     let current: Section | null = null;
-    let languagesInlineValue: string | null = null;
+    const inlineValues: Record<string, string | null> = {};
 
     for (const rawLine of lines) {
       const trimmed = rawLine.trim();
@@ -199,8 +211,8 @@ export class QuestionExtractionService {
         if (!m) continue;
         matched = true;
         if (current) sections.push(current);
-        if (kind === "languages") {
-          languagesInlineValue = m[1]?.trim() || null;
+        if (INLINE_KINDS.has(kind)) {
+          inlineValues[kind] = m[1]?.trim() || null;
           current = null;
         } else {
           current = { kind, key: m[1], lines: [] };
@@ -210,6 +222,7 @@ export class QuestionExtractionService {
       if (!matched && current) current.lines.push(rawLine);
     }
     if (current) sections.push(current);
+    const languagesInlineValue = inlineValues.languages ?? null;
 
     const trimBlock = (arr: string[]) => arr.join("\n").replace(/^\n+|\n+$/g, "");
 
@@ -263,6 +276,25 @@ export class QuestionExtractionService {
       ...buildCases("hidden_input", "hidden_output", false),
     ];
 
+    // PARAMETERS: one "name: type" per line, e.g. "nums: int[]".
+    const PARAM_TYPES = new Set(["int", "double", "boolean", "string", "int[]", "double[]", "string[]", "boolean[]"]);
+    const parametersSection = sections.find((s) => s.kind === "parameters");
+    const parameters: DraftFunctionParameter[] = [];
+    const badParamLines: string[] = [];
+    for (const rawLine of parametersSection?.lines ?? []) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(\S+)$/);
+      if (!m || !PARAM_TYPES.has(m[2])) {
+        badParamLines.push(line);
+        continue;
+      }
+      parameters.push({ name: m[1], type: m[2] });
+    }
+
+    const functionName = inlineValues.function ?? "";
+    const returnType = inlineValues.returns ?? "";
+
     const warnings: string[] = [];
     if (!statement) warnings.push("No STATEMENT section detected.");
     if (allowedLanguages.length === 0) warnings.push("No languages detected — add LANGUAGES or STARTER sections.");
@@ -273,6 +305,13 @@ export class QuestionExtractionService {
     if (testCases.some((tc) => !tc.input && !tc.expectedOutput)) {
       warnings.push("A test case is missing its input or expected output.");
     }
+    if (!functionName) warnings.push("No FUNCTION section detected.");
+    if (parameters.length === 0) warnings.push("No PARAMETERS detected — add at least one (e.g. \"nums: int[]\").");
+    if (badParamLines.length > 0) {
+      warnings.push(`Couldn't parse PARAMETERS line(s): ${badParamLines.join(", ")}.`);
+    }
+    if (!returnType) warnings.push("No RETURNS section detected.");
+    else if (!PARAM_TYPES.has(returnType)) warnings.push(`Unrecognized RETURNS type "${returnType}".`);
 
     return {
       questionText: statement,
@@ -286,6 +325,9 @@ export class QuestionExtractionService {
         allowedLanguages,
         starterCode,
         testCases,
+        functionName,
+        parameters,
+        returnType,
       },
       parseWarning: warnings.length > 0 ? warnings.join(" ") : null,
     };

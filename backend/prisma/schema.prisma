@@ -169,9 +169,18 @@ model CodingProblem {
   // ("c", "cpp", "java", "python"), kept as plain strings so adding a new
   // supported language never needs a migration.
   allowedLanguages String[] @map("allowed_languages")
-  // { [languageId]: starterSourceCode } — pre-filled into the editor when
-  // the student picks that language.
+  // { [languageId]: starterSourceCode } — the FUNCTION STUB only (not a full
+  // program) pre-filled into the editor when the student picks that
+  // language, e.g. "def twoSum(nums, target):\n    pass".
   starterCode Json @default("{}") @map("starter_code")
+  // LeetCode-style judging: the student implements just this function, the
+  // judge calls it with each test case's args and compares the return
+  // value — see backend/src/judge/harness/. functionName/returnType default
+  // to "" only so this migration doesn't fail against pre-existing
+  // stdin/stdout-era rows; every question authored from here on fills them.
+  functionName String        @default("") @map("function_name")
+  parameters   Json          @default("[]") // [{ name: string, type: ParamType }, ...]
+  returnType   String        @default("") @map("return_type")
 
   testCases CodingTestCase[]
 
@@ -182,8 +191,12 @@ model CodingTestCase {
   id              String        @id @default(uuid())
   codingProblemId String        @map("coding_problem_id")
   codingProblem   CodingProblem @relation(fields: [codingProblemId], references: [id])
-  input           String
-  expectedOutput  String        @map("expected_output")
+  // JSON array of argument values in CodingProblem.parameters order, e.g.
+  // "[[2,7,11,15], 9]" for twoSum(nums, target) — NOT raw stdin text anymore.
+  input String
+  // JSON value of the expected return, e.g. "[0,1]" — compared structurally
+  // (parsed + deep-equal), not as a literal string.
+  expectedOutput String @map("expected_output")
   // Sample cases are shown to the student on the problem screen; hidden
   // ones are judged but their input/output never leaves the server.
   isSample   Boolean @default(false) @map("is_sample")

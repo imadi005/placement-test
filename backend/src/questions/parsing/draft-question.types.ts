@@ -11,6 +11,11 @@ export interface DraftCodingTestCase {
   points: number;
 }
 
+export interface DraftFunctionParameter {
+  name: string;
+  type: string;
+}
+
 export interface DraftCodingProblem {
   constraints: string | null;
   timeLimitMs: number;
@@ -18,6 +23,10 @@ export interface DraftCodingProblem {
   allowedLanguages: string[];
   starterCode: Record<string, string>;
   testCases: DraftCodingTestCase[];
+  // LeetCode-style signature the student implements.
+  functionName: string;
+  parameters: DraftFunctionParameter[];
+  returnType: string;
 }
 
 export interface DraftQuestion {

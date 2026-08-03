@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { DocxParserService } from "./parsing/docx-parser.service";
@@ -119,6 +120,9 @@ export class QuestionsService {
       memoryLimitMb: codingProblem.memoryLimitMb,
       allowedLanguages: codingProblem.allowedLanguages,
       starterCode: codingProblem.starterCode ?? {},
+      functionName: codingProblem.functionName,
+      parameters: codingProblem.parameters as unknown as Prisma.InputJsonValue,
+      returnType: codingProblem.returnType,
     }));
     const testCaseRows = codingInputs.flatMap(({ codingProblem }, i) =>
       codingProblem.testCases.map((tc, order) => ({

@@ -8,8 +8,24 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
 import { JudgeService } from "../judge/judge.service";
+import { FunctionSignature } from "../judge/harness/harness-types";
 import { SubmitAnswerDto, ReportViolationDto, RunCodeDto } from "./dto/attempt.dto";
 import { seededShuffle } from "./shuffle.util";
+
+// codingProblem's functionName/parameters/returnType columns describe the
+// LeetCode-style signature the student implements — this is the one place
+// that shape gets read off the Prisma row and handed to the judge.
+function toFunctionSignature(codingProblem: {
+  functionName: string;
+  parameters: Prisma.JsonValue;
+  returnType: string;
+}): FunctionSignature {
+  return {
+    functionName: codingProblem.functionName,
+    parameters: codingProblem.parameters as unknown as FunctionSignature["parameters"],
+    returnType: codingProblem.returnType as FunctionSignature["returnType"],
+  };
+}
 
 const MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT = 5;
 
@@ -210,7 +226,8 @@ export class AttemptsService {
         expectedOutput: tc.expectedOutput,
         isSample: true,
         points: Number(tc.points),
-      }))
+      })),
+      toFunctionSignature(question.codingProblem)
     );
 
     return { results };
@@ -279,7 +296,8 @@ export class AttemptsService {
         expectedOutput: tc.expectedOutput,
         isSample: tc.isSample,
         points: Number(tc.points),
-      }))
+      })),
+      toFunctionSignature(codingProblem)
     );
 
     const maxScore = codingProblem.testCases.reduce((sum, tc) => sum + Number(tc.points), 0);

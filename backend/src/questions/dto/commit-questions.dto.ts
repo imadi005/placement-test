@@ -21,6 +21,16 @@ export class ReviewedOptionDto {
   isCorrect!: boolean;
 }
 
+const PARAM_TYPES = ["int", "double", "boolean", "string", "int[]", "double[]", "string[]", "boolean[]"];
+
+export class FunctionParameterDto {
+  @IsString()
+  name!: string;
+
+  @IsIn(PARAM_TYPES)
+  type!: string;
+}
+
 export class CodingTestCaseDto {
   @IsString()
   input!: string;
@@ -56,10 +66,24 @@ export class CodingProblemDto {
   @IsIn(["c", "cpp", "java", "python"], { each: true })
   allowedLanguages!: string[];
 
-  // { [languageId]: starterSourceCode }
+  // { [languageId]: starterSourceCode } — the function stub only (see
+  // CodingProblem.starterCode's comment in schema.prisma).
   @IsOptional()
   @IsObject()
   starterCode?: Record<string, string>;
+
+  // LeetCode-style signature the student implements — see
+  // backend/src/judge/harness/harness-types.ts for the ParamType grammar.
+  @IsString()
+  functionName!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FunctionParameterDto)
+  parameters!: FunctionParameterDto[];
+
+  @IsIn(PARAM_TYPES)
+  returnType!: string;
 
   @IsArray()
   @ArrayMinSize(1)

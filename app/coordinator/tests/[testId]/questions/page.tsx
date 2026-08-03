@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { QuestionReviewCard, EditableQuestion } from "@/components/questions/QuestionReviewCard";
+import { EditableCodingProblem } from "@/components/questions/coding-types";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { authFetch } from "@/lib/authFetch";
 
@@ -46,6 +47,9 @@ export default function QuestionReviewPage() {
               allowedLanguages: string[];
               starterCode: Record<string, string>;
               testCases: { input: string; expectedOutput: string; isSample: boolean; points: string }[];
+              functionName: string;
+              parameters: { name: string; type: string }[];
+              returnType: string;
             } | null;
           }> = await res.json();
           if (existing.length > 0) {
@@ -68,6 +72,9 @@ export default function QuestionReviewPage() {
                         isSample: tc.isSample,
                         points: Number(tc.points),
                       })),
+                      functionName: q.codingProblem.functionName,
+                      parameters: q.codingProblem.parameters as EditableCodingProblem["parameters"],
+                      returnType: q.codingProblem.returnType as EditableCodingProblem["returnType"],
                     }
                   : undefined,
               }))
