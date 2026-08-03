@@ -144,6 +144,22 @@ export class AttemptsService {
   async saveAnswer(attemptId: string, studentId: string, dto: SubmitAnswerDto) {
     await this.assertOwnership(attemptId, studentId);
 
+    // An option id is only ever meaningful for the question it actually
+    // belongs to — without this check, any option id a student can learn
+    // (e.g. from a previous test's results, which do reveal isCorrect) could
+    // be replayed as the answer to an unrelated question in a different
+    // test to claim its marks, since QuestionOption.id is a global UUID
+    // with no scoping enforced at grading time otherwise.
+    if (dto.selectedOptionId) {
+      const option = await this.prisma.questionOption.findUnique({
+        where: { id: dto.selectedOptionId },
+        select: { questionId: true },
+      });
+      if (!option || option.questionId !== dto.questionId) {
+        throw new BadRequestException("That option doesn't belong to this question.");
+      }
+    }
+
     return this.prisma.attemptAnswer.upsert({
       where: { attemptId_questionId: { attemptId, questionId: dto.questionId } },
       create: {

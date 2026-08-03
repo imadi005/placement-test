@@ -45,6 +45,11 @@ export class AuthService {
     const user = await this.resolveUser(identifier);
 
     if (!user || !user.isActive) {
+      // Runs a comparably-costly bcrypt op before rejecting so an unknown
+      // identifier isn't measurably faster to reject than a known one with
+      // a wrong password — otherwise response timing alone (not just the
+      // error body) leaks which roll numbers/emails are real accounts.
+      await bcrypt.compare(password, "$2b$12$CwTycUXWue0Thq9StjUM0uJ8vHW3Wnk3aFdMqSyOxeSBQGtN3f/oi");
       throw new UnauthorizedException("Invalid credentials");
     }
 
@@ -140,7 +145,9 @@ export class AuthService {
   // here.
   async verifyOtp(identifier: string, otp: string): Promise<string> {
     const user = await this.resolveUser(identifier);
-    if (!user || !user.otpCodeHash || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+    if (!user || !user.isActive || !user.otpCodeHash || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+      // Same timing-equalization as validateCredentials/requestPasswordReset.
+      await bcrypt.compare(otp, "$2b$12$CwTycUXWue0Thq9StjUM0uJ8vHW3Wnk3aFdMqSyOxeSBQGtN3f/oi");
       throw new BadRequestException("That code is invalid or has expired.");
     }
 
@@ -171,7 +178,15 @@ export class AuthService {
   // reset link itself surviving forwarding/copy-paste).
   async requestPasswordReset(identifier: string) {
     const user = await this.resolveUser(identifier);
-    if (!user || !user.isActive) return;
+    if (!user || !user.isActive) {
+      // Burns roughly the same time a real OTP-generation would (the bcrypt
+      // hash dominates) so a valid vs. invalid identifier can't be told
+      // apart by response timing either — the response body was already
+      // identical either way, but timing alone was enough to distinguish
+      // them (real accounts measurably slower than nonexistent ones).
+      await bcrypt.hash("timing-equalizer", 12);
+      return;
+    }
 
     await this.generateAndSendOtp(user);
   }
@@ -182,7 +197,7 @@ export class AuthService {
   // re-enter credentials for a password they just finished proving they own.
   async resetPassword(token: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { resetToken: token } });
-    if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+    if (!user || !user.isActive || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
       throw new BadRequestException("This reset link is invalid or has expired");
     }
 

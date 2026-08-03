@@ -43,17 +43,36 @@ export function clearSession() {
 // it without the user re-entering anything, as long as the cookie (7 days)
 // hasn't expired yet. Returns null on any failure; callers decide whether
 // that means "send them to /login".
+//
+// A page firing several authenticated requests at once when the access
+// token has just expired used to trigger one /auth/refresh call per
+// request — harmless today (the backend never invalidates the old refresh
+// token, so concurrent refreshes all independently succeed), but fragile:
+// the moment refresh-token rotation/single-use enforcement is added, the
+// "losing" concurrent calls would start causing spurious logouts. Sharing
+// one in-flight promise avoids the race entirely regardless of backend
+// behavior.
+let inFlightRefresh: Promise<string | null> | null = null;
+
 export async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    setAccessToken(data.accessToken);
-    return data.accessToken as string;
-  } catch {
-    return null;
-  }
+  if (inFlightRefresh) return inFlightRefresh;
+
+  inFlightRefresh = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setAccessToken(data.accessToken);
+      return data.accessToken as string;
+    } catch {
+      return null;
+    } finally {
+      inFlightRefresh = null;
+    }
+  })();
+
+  return inFlightRefresh;
 }

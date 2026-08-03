@@ -157,12 +157,18 @@ export class TestsService {
       }
     }
 
+    // Explicit orderBy so a full tie (same score, same total coding time —
+    // e.g. an all-MCQ test where two students both score 80%) resolves the
+    // same way on every call. Without it, Postgres row order is
+    // unspecified, so Array.sort's stability doesn't actually guarantee a
+    // stable *result* — "who's the overall winner" could flip on refresh.
     const attempts = await this.prisma.testAttempt.findMany({
       where: { testId, status: { not: "in_progress" } },
       include: {
         student: { include: { user: { select: { fullName: true } } } },
         codingSubmissions: true,
       },
+      orderBy: { id: "asc" },
     });
 
     // Tie-break signal for the overall ranking: total time across a

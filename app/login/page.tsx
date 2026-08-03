@@ -33,7 +33,11 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        setError("Invalid user ID or password.");
+        setError(
+          res.status === 429
+            ? "Too many sign-in attempts from your network right now — wait a minute and try again."
+            : "Invalid user ID or password."
+        );
         return;
       }
 
