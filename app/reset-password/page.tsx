@@ -4,6 +4,7 @@ import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { Spinner } from "@/components/ui/Spinner";
 import { AuthCard } from "@/components/AuthCard";
 import { PasswordStrengthMeter, passwordMeetsRules } from "@/components/auth/PasswordStrengthMeter";
 import { setSession } from "@/lib/session";
@@ -54,16 +55,19 @@ function ResetPasswordForm() {
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         setError(body?.message ?? "This reset link is invalid or has expired.");
+        setIsSubmitting(false);
         return;
       }
       const data = await res.json();
       // Just proved ownership of this account (OTP or emailed link) and set
       // a real password — no reason to make them type credentials again.
+      // Not resetting isSubmitting here — stays disabled/spinning through
+      // the navigation into the dashboard instead of flashing back to
+      // "Reset password" right as the next page is still loading.
       setSession(data.accessToken, data.user.role, data.user.fullName);
       router.push(ROLE_HOME[data.user.role] ?? "/login");
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -112,7 +116,8 @@ function ResetPasswordForm() {
             </p>
           )}
 
-          <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+          <Button type="submit" size="lg" className="mt-2 w-full gap-2" disabled={isSubmitting}>
+            {isSubmitting && <Spinner />}
             {isSubmitting ? "Saving…" : "Reset password"}
           </Button>
         </form>

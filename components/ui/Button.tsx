@@ -31,7 +31,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={clsx(
-        "rounded-md font-sans font-medium transition-all duration-200 ease-smooth",
+        "inline-flex items-center justify-center rounded-md font-sans font-medium transition-all duration-200 ease-smooth",
         "active:scale-[0.97] disabled:active:scale-100",
         "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
         variantClasses[variant],

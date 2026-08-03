@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { Spinner } from "@/components/ui/Spinner";
 import { AuthCard } from "@/components/AuthCard";
 import { setSession } from "@/lib/session";
 
@@ -38,10 +39,17 @@ export default function LoginPage() {
             ? "Too many sign-in attempts from your network right now — wait a minute and try again."
             : "Invalid user ID or password."
         );
+        setIsSubmitting(false);
         return;
       }
 
       const data = await res.json();
+
+      // Deliberately NOT resetting isSubmitting on the success paths below —
+      // the button stays disabled with its spinner through the router.push,
+      // rather than flashing back to "Sign in" right as the next page's
+      // chunk is still loading (that flash was reading as "did this even
+      // work?" during the gap before the new page actually appears).
 
       // First login (or any account still on a temp password) never gets a
       // session here — it gets an emailed OTP instead, and only reaches the
@@ -61,7 +69,6 @@ export default function LoginPage() {
       router.push(roleRoutes[data.user.role] ?? "/dashboard");
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -102,7 +109,8 @@ export default function LoginPage() {
           </p>
         )}
 
-        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+        <Button type="submit" size="lg" className="mt-2 w-full gap-2" disabled={isSubmitting}>
+          {isSubmitting && <Spinner />}
           {isSubmitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>

@@ -343,14 +343,14 @@ export class AttemptsService {
       mcqAwards.push({ id: answer.id, marksAwarded: awarded });
     }
 
-    // Sequential, not Promise.all — each one is a handful of Judge0 calls
-    // already; running every coding question's judging concurrently would
-    // just hammer the judge server harder for no benefit at this scale.
+    // Concurrent, not sequential — a load test (100 students x 50 coding
+    // questions) showed sequential-per-question judging taking 5+ minutes
+    // per submit, purely from stacking our own network round-trips on top
+    // of each other. Judge0 already queues submissions past its own worker
+    // capacity, so it bears the real concurrency limit either way; this
+    // just stops paying for N round-trips in series when we don't have to.
     const codingAnswers = answers.filter((a) => a.question.questionType === "coding");
-    const codingGrades = [];
-    for (const answer of codingAnswers) {
-      codingGrades.push(await this.gradeCodingAnswer(answer));
-    }
+    const codingGrades = await Promise.all(codingAnswers.map((answer) => this.gradeCodingAnswer(answer)));
     const codingScore = codingGrades.reduce((sum, g) => sum + g.score, 0);
     const finalScore = mcqScore + codingScore;
 

@@ -4,6 +4,7 @@ import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Spinner } from "@/components/ui/Spinner";
 import { AuthCard } from "@/components/AuthCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -37,13 +38,16 @@ function VerifyOtpForm() {
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         setError(body?.message ?? "That code is invalid or has expired.");
+        setIsSubmitting(false);
         return;
       }
       const data = await res.json();
+      // Not resetting isSubmitting here — stays disabled/spinning through
+      // the navigation to /reset-password instead of flashing back to
+      // "Verify" right as the next page is still loading.
       router.push(`/reset-password?token=${encodeURIComponent(data.resetToken)}`);
     } catch {
       setError("Couldn't reach the server. Is the backend running?");
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -88,7 +92,8 @@ function VerifyOtpForm() {
           </p>
         )}
 
-        <Button type="submit" size="lg" className="mt-2 w-full" disabled={isSubmitting}>
+        <Button type="submit" size="lg" className="mt-2 w-full gap-2" disabled={isSubmitting}>
+          {isSubmitting && <Spinner />}
           {isSubmitting ? "Verifying…" : "Verify"}
         </Button>
       </form>

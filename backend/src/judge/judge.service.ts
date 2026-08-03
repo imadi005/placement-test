@@ -78,10 +78,14 @@ export class JudgeService {
     return headers;
   }
 
-  // Runs one submission against every given test case, sequentially — a
-  // coding round has a handful of cases per problem, not thousands;
-  // sequential + wait=true keeps this simple and keeps Judge0's own queue
-  // (Redis-backed) as the only place load actually gets managed.
+  // Runs one submission against every given test case concurrently. Judge0
+  // already queues submissions past its own worker capacity (Redis-backed),
+  // so firing them all at once doesn't overload it any more than sending
+  // them one at a time does — it just stops OUR sequential round-trips
+  // from stacking latency on top of Judge0's own queue wait. A load test
+  // (100 students x 50 coding questions, sequential) took 5+ minutes per
+  // submission; concurrent requests let Judge0's queue be the only
+  // bottleneck instead of also paying our own network round-trip N times.
   async runAgainstCases(
     sourceCode: string,
     language: string,
@@ -123,11 +127,7 @@ export class JudgeService {
       }));
     }
 
-    const results: JudgeCaseResult[] = [];
-    for (const testCase of cases) {
-      results.push(await this.runOne(sourceCode, languageId, timeLimitMs, memoryLimitMb, testCase));
-    }
-    return results;
+    return Promise.all(cases.map((testCase) => this.runOne(sourceCode, languageId, timeLimitMs, memoryLimitMb, testCase)));
   }
 
   private async runOne(
