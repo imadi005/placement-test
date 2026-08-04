@@ -8,26 +8,25 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LeaderboardTable, LeaderboardEntry, OverallWinnerBanner } from "@/components/test/LeaderboardTable";
 import { ProblemWinnersCard, ProblemWinner } from "@/components/test/ProblemWinnersCard";
+import { QuestionResultCard, ResultAnswer } from "@/components/test/QuestionResultCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { authFetch } from "@/lib/authFetch";
+import { getSocket } from "@/lib/socket";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-interface ResultAnswer {
-  id: string;
-  question: { questionText: string; marks: string };
-  marksAwarded: string | null;
-}
 interface AttemptResult {
   id: string;
   testId: string;
   status: string;
   mcqScore: string | null;
   finalScore: string | null;
+  maxScore: number;
   answers: ResultAnswer[];
 }
 interface Leaderboard {
   entries: LeaderboardEntry[];
+  maxScore: number;
   totalParticipants: number;
   myRank: number | null;
   myScore: number | null;
@@ -46,6 +45,11 @@ export default function ResultsPage() {
   const [showFullLeaderboard, setShowFullLeaderboard] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function loadLeaderboard(testId: string) {
+    const lbRes = await authFetch(`${API_URL}/tests/${testId}/leaderboard`);
+    if (lbRes.ok) setLeaderboard(await lbRes.json());
+  }
+
   useEffect(() => {
     if (!ready) return;
     async function load() {
@@ -56,12 +60,36 @@ export default function ResultsPage() {
       }
       const data: AttemptResult = await res.json();
       setResult(data);
-
-      const lbRes = await authFetch(`${API_URL}/tests/${data.testId}/leaderboard`);
-      if (lbRes.ok) setLeaderboard(await lbRes.json());
+      await loadLeaderboard(data.testId);
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, attemptId]);
+
+  // Live-updating leaderboard — rank/participant count used to only ever
+  // refresh on a manual page reload. Joins the same test:{id} socket room
+  // the coordinator's live-monitoring screen uses; every attempt_submitted
+  // elsewhere in the same test re-fetches the leaderboard here too. A
+  // periodic poll is the fallback in case a socket event is ever missed.
+  useEffect(() => {
+    if (!ready || !result) return;
+    const testId = result.testId;
+    const socket = getSocket();
+    socket.emit("test:join", { testId });
+
+    function handleEvent(event: { type: string }) {
+      if (event.type === "attempt_submitted") loadLeaderboard(testId);
+    }
+    socket.on("test:event", handleEvent);
+
+    const pollInterval = setInterval(() => loadLeaderboard(testId), 8000);
+
+    return () => {
+      socket.off("test:event", handleEvent);
+      clearInterval(pollInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, result?.testId]);
 
   if (!ready) return null;
 
@@ -90,7 +118,7 @@ export default function ResultsPage() {
       <Card className="mb-8 text-center shadow-soft-ink-lg">
         <p className="text-label-caps text-on-surface-variant">Test completion summary</p>
         <p className="mt-3 bg-gradient-to-br from-primary to-primary-container bg-clip-text font-serif text-score-xl text-transparent">
-          {displayScore ?? "—"}
+          {displayScore ?? "—"}/{result.maxScore}
         </p>
         <Badge tone="sage" className="mt-3">
           Graded
@@ -108,6 +136,7 @@ export default function ResultsPage() {
               You're ahead of {aheadOfCount} student{aheadOfCount === 1 ? "" : "s"}.
             </p>
           )}
+          <p className="mt-1 text-label-caps text-on-surface-variant">Updates live as more students submit</p>
           <button
             onClick={() => setShowFullLeaderboard((v) => !v)}
             className="mt-3 text-body-sm text-primary underline underline-offset-4 hover:text-primary-container"
@@ -119,26 +148,20 @@ export default function ResultsPage() {
 
       {showFullLeaderboard && leaderboard && (
         <div className="mb-8">
-          <OverallWinnerBanner winner={leaderboard.overallWinner} />
+          <OverallWinnerBanner winner={leaderboard.overallWinner} maxScore={leaderboard.maxScore} />
           {leaderboard.problemWinners.length > 0 && (
             <div className="mb-4">
               <ProblemWinnersCard problems={leaderboard.problemWinners} />
             </div>
           )}
-          <LeaderboardTable entries={leaderboard.entries} highlightRank={leaderboard.myRank} />
+          <LeaderboardTable entries={leaderboard.entries} highlightRank={leaderboard.myRank} maxScore={leaderboard.maxScore} />
         </div>
       )}
 
       <h2 className="mb-4 font-serif text-headline-md text-on-surface">Question breakdown</h2>
       <div className="flex flex-col gap-3">
-        {result.answers.map((a) => (
-          <Card key={a.id} className="flex items-center justify-between hover:border-outline">
-            <div>
-              <p className="text-body-md text-on-surface">{a.question.questionText}</p>
-              <p className="text-label-caps text-on-surface-variant">{a.question.marks} marks</p>
-            </div>
-            <span className="font-serif font-semibold text-on-surface">{a.marksAwarded ?? "0"}</span>
-          </Card>
+        {result.answers.map((a, i) => (
+          <QuestionResultCard key={a.id} answer={a} index={i} />
         ))}
       </div>
 

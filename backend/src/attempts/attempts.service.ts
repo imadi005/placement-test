@@ -479,15 +479,31 @@ export class AttemptsService {
     });
     if (!attempt) throw new NotFoundException("Attempt not found");
     if (attempt.studentId !== studentId) throw new ForbiddenException("Not your attempt");
-    return attempt;
+
+    // Summed from the test's full question set, not `answers` — a question
+    // the student never touched has no AttemptAnswer row at all, so summing
+    // marks from `answers` alone would under-count the true "out of" total.
+    const questions = await this.prisma.question.findMany({
+      where: { testId: attempt.testId },
+      select: { marks: true },
+    });
+    const maxScore = questions.reduce((sum, q) => sum + Number(q.marks), 0);
+
+    return { ...attempt, maxScore };
   }
 
   // Student's own dashboard — score history across every test they've taken.
   async listForStudent(studentId: string) {
-    return this.prisma.testAttempt.findMany({
+    const attempts = await this.prisma.testAttempt.findMany({
       where: { studentId },
-      include: { test: { select: { title: true } } },
+      include: { test: { select: { title: true, questions: { select: { marks: true } } } } },
       orderBy: { submittedAt: "desc" },
     });
+
+    return attempts.map(({ test, ...attempt }) => ({
+      ...attempt,
+      test: { title: test.title },
+      maxScore: test.questions.reduce((sum, q) => sum + Number(q.marks), 0),
+    }));
   }
 }

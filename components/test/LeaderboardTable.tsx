@@ -12,7 +12,7 @@ export interface LeaderboardEntry {
 
 const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-export function OverallWinnerBanner({ winner }: { winner: LeaderboardEntry | null }) {
+export function OverallWinnerBanner({ winner, maxScore }: { winner: LeaderboardEntry | null; maxScore?: number }) {
   if (!winner) return null;
   return (
     <Card className="mb-4 flex items-center gap-3 bg-primary/5">
@@ -20,7 +20,8 @@ export function OverallWinnerBanner({ winner }: { winner: LeaderboardEntry | nul
       <div>
         <p className="text-body-sm text-on-surface-variant">Overall winner</p>
         <p className="font-serif text-title-md text-on-surface">
-          {winner.fullName} <span className="text-on-surface-variant">({winner.rollNo})</span> — {winner.score} pts
+          {winner.fullName} <span className="text-on-surface-variant">({winner.rollNo})</span> —{" "}
+          {maxScore !== undefined ? `${winner.score}/${maxScore}` : `${winner.score} pts`}
         </p>
       </div>
     </Card>
@@ -30,9 +31,11 @@ export function OverallWinnerBanner({ winner }: { winner: LeaderboardEntry | nul
 export function LeaderboardTable({
   entries,
   highlightRank,
+  maxScore,
 }: {
   entries: LeaderboardEntry[];
   highlightRank?: number | null;
+  maxScore?: number;
 }) {
   if (entries.length === 0) {
     return (
@@ -75,7 +78,9 @@ export function LeaderboardTable({
                   <td className="p-3 text-body-sm text-on-surface-variant">{e.rollNo}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{e.batch}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{e.section}</td>
-                  <td className="p-3 font-serif font-semibold text-on-surface">{e.score}</td>
+                  <td className="p-3 font-serif font-semibold text-on-surface">
+                    {maxScore !== undefined ? `${e.score}/${maxScore}` : e.score}
+                  </td>
                 </tr>
               );
             })}

@@ -182,8 +182,12 @@ export class TestsService {
   // can always see it; a student can only see it once THEIR OWN attempt is
   // submitted, so nobody can peek at standings mid-test.
   async getLeaderboard(testId: string, requester: { id: string; role: string }) {
-    const test = await this.prisma.test.findUnique({ where: { id: testId } });
+    const test = await this.prisma.test.findUnique({
+      where: { id: testId },
+      include: { questions: { select: { marks: true } } },
+    });
     if (!test) throw new NotFoundException("Test not found");
+    const maxScore = test.questions.reduce((sum, q) => sum + Number(q.marks), 0);
 
     if (requester.role === "student") {
       const myAttempt = await this.prisma.testAttempt.findUnique({
@@ -282,6 +286,7 @@ export class TestsService {
 
     return {
       testTitle: test.title,
+      maxScore,
       entries: publicEntries,
       totalParticipants: publicEntries.length,
       myRank: myEntry?.rank ?? null,

@@ -24,6 +24,7 @@ interface Attempt {
   status: string;
   mcqScore: string | null;
   finalScore: string | null;
+  maxScore: number;
   submittedAt: string | null;
   test: { title: string };
 }
@@ -93,7 +94,8 @@ export default function DashboardPage() {
     attemptId: a.id,
     testName: a.test.title,
     dateCompleted: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—",
-    score: a.finalScore ?? a.mcqScore ?? "—",
+    score: a.finalScore ?? a.mcqScore ?? null,
+    maxScore: a.maxScore,
     status: "graded",
   }));
 

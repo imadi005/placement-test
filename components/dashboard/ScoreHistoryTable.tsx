@@ -7,7 +7,8 @@ export interface ScoreRow {
   attemptId: string;
   testName: string;
   dateCompleted: string;
-  score: string;
+  score: string | null;
+  maxScore: number;
   status: "graded";
 }
 
@@ -54,7 +55,9 @@ export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
               </td>
               <td className="p-4 text-body-sm text-on-surface-variant">{row.dateCompleted}</td>
               <td className="p-4">
-                <span className="font-serif font-semibold text-on-surface">{row.score}</span>
+                <span className="font-serif font-semibold text-on-surface">
+                  {row.score !== null ? `${row.score}/${row.maxScore}` : "—"}
+                </span>
               </td>
             </tr>
           ))}
