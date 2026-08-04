@@ -14,7 +14,16 @@ const REFRESH_COOKIE = "ptp_refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true,
-  sameSite: "strict" as const,
+  // Frontend (Vercel) and backend (Render) are different sites, so a
+  // SameSite=Strict cookie never gets sent on the cross-site fetch calls
+  // authFetch/refreshAccessToken make — /auth/refresh silently always
+  // failed in production, capping every session at the 15-minute access
+  // token's lifetime instead of the intended 7-day refresh window. Worked
+  // fine in local dev (frontend+backend both on "localhost", same site),
+  // which is why this only showed up once real students hit the real
+  // deployed URLs. SameSite=None requires Secure, which is already set —
+  // both Render and Vercel serve over HTTPS.
+  sameSite: "none" as const,
   path: "/auth/refresh",
 };
 
@@ -120,7 +129,9 @@ export class AuthController {
   @Post("logout")
   @HttpCode(200)
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(REFRESH_COOKIE, { path: "/auth/refresh" });
+    // Match the same attributes it was set with — some browsers won't
+    // overwrite a Secure/SameSite=None cookie with a clear that doesn't.
+    res.clearCookie(REFRESH_COOKIE, { path: "/auth/refresh", secure: true, sameSite: "none" });
     return { success: true };
   }
 }
