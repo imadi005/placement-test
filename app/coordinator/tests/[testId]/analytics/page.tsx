@@ -25,6 +25,15 @@ import { authFetch } from "@/lib/authFetch";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+// "12 min" alone hid the seconds that actually decide a same-score tie —
+// two attempts both rounding to "12 min" could be 12m 04s and 12m 51s.
+function formatTimeTaken(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
 interface GroupStat {
   attempted: number;
   avgScore: number;
@@ -53,6 +62,7 @@ interface StudentRow {
   finalScore: number | null;
   violationCount: number;
   timeTakenMinutes: number | null;
+  timeTakenSeconds: number | null;
 }
 interface Analytics {
   test: { id: string; title: string; batchScope: string; maxScore: number };
@@ -373,7 +383,7 @@ export default function TestAnalyticsPage() {
                   </td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{s.violationCount}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">
-                    {s.timeTakenMinutes !== null ? `${s.timeTakenMinutes} min` : "—"}
+                    {formatTimeTaken(s.timeTakenSeconds)}
                   </td>
                 </tr>
               ))}

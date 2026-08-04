@@ -146,9 +146,14 @@ export class AnalyticsService {
 
     const students = submitted
       .map((a) => {
-        const timeTakenMinutes =
+        // Kept to the exact second (not rounded to minutes) specifically so
+        // the tie-break below can actually distinguish two attempts that
+        // both round to the same displayed minute (e.g. 9:50 and 9:04 both
+        // show "10 min" / "9 min" if rounded, but the raw seconds are what
+        // decide who really finished faster).
+        const timeTakenSeconds =
           a.startedAt && a.submittedAt
-            ? Math.round((a.submittedAt.getTime() - a.startedAt.getTime()) / 60000)
+            ? Math.round((a.submittedAt.getTime() - a.startedAt.getTime()) / 1000)
             : null;
         return {
           attemptId: a.id,
@@ -160,10 +165,20 @@ export class AnalyticsService {
           mcqScore: a.mcqScore !== null ? Number(a.mcqScore) : null,
           finalScore: a.finalScore !== null ? Number(a.finalScore) : null,
           violationCount: a.violations.length,
-          timeTakenMinutes,
+          timeTakenMinutes: timeTakenSeconds !== null ? Math.round(timeTakenSeconds / 60) : null,
+          timeTakenSeconds,
         };
       })
-      .sort((a, b) => (b.finalScore ?? b.mcqScore ?? -1) - (a.finalScore ?? a.mcqScore ?? -1));
+      .sort((a, b) => {
+        const scoreDiff = (b.finalScore ?? b.mcqScore ?? -1) - (a.finalScore ?? a.mcqScore ?? -1);
+        if (scoreDiff !== 0) return scoreDiff;
+        // Tie on score — less time taken ranks higher. No-time-recorded
+        // (null) sorts after every attempt that does have a time, tie or
+        // not, same convention as the leaderboard's own tie-break.
+        const aTime = a.timeTakenSeconds ?? Infinity;
+        const bTime = b.timeTakenSeconds ?? Infinity;
+        return aTime - bTime;
+      });
 
     return {
       test: { id: test.id, title: test.title, batchScope: test.batchScope, maxScore },
