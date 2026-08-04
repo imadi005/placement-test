@@ -305,8 +305,11 @@ export default function TestAnalyticsPage() {
           label="Average score"
           value={`${overview.avgScore.toFixed(1)} / ${overview.maxPossibleScore}`}
         />
-        <StatCard label="Median score" value={overview.medianScore.toFixed(1)} />
-        <StatCard label="High / Low" value={`${overview.highScore} / ${overview.lowScore}`} />
+        <StatCard
+          label="Median score"
+          value={`${overview.medianScore.toFixed(1)} / ${overview.maxPossibleScore}`}
+        />
+        <StatCard label="High / Low" value={`${overview.highScore} / ${overview.lowScore} (of ${overview.maxPossibleScore})`} />
         <StatCard
           label="Students with violations"
           value={String(overview.studentsWithViolations)}
@@ -442,7 +445,7 @@ export default function TestAnalyticsPage() {
                     <Badge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status.replace("_", " ")}</Badge>
                   </td>
                   <td className="p-3 font-serif font-semibold text-on-surface">
-                    {s.finalScore ?? s.mcqScore ?? "—"}
+                    {s.finalScore ?? s.mcqScore ?? "—"}/{data.test.maxScore}
                   </td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{s.violationCount}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">
