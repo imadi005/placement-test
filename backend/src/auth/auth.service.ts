@@ -31,14 +31,21 @@ export class AuthService {
 
   // Students identify with roll number, staff/admin with email — shared by
   // login and forgot-password so there's exactly one place this resolution
-  // happens.
+  // happens. Case-insensitive on purpose: roll numbers are stored uppercase
+  // and emails lowercase, so a student typing either in the "wrong" case
+  // (very easy to do — nothing about the login form hints at a required
+  // case) used to get a bare "Invalid credentials" for no real reason.
+  // findFirst (not findUnique) because Prisma's `mode: "insensitive"` isn't
+  // supported on findUnique's where clause.
   private async resolveUser(identifier: string) {
-    const student = await this.prisma.student.findUnique({
-      where: { rollNo: identifier },
+    const student = await this.prisma.student.findFirst({
+      where: { rollNo: { equals: identifier, mode: "insensitive" } },
       include: { user: true },
     });
 
-    return student ? student.user : this.prisma.user.findUnique({ where: { email: identifier } });
+    return student
+      ? student.user
+      : this.prisma.user.findFirst({ where: { email: { equals: identifier, mode: "insensitive" } } });
   }
 
   async validateCredentials(identifier: string, password: string) {
