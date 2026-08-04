@@ -42,10 +42,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return `attempt:${attemptId}:state`;
   }
 
-  attemptViolationsKey(attemptId: string) {
-    return `attempt:${attemptId}:violations`;
-  }
-
   testActiveStudentsKey(testId: string) {
     return `test:${testId}:active_students`;
   }
@@ -61,13 +57,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async getAttemptState<T = Record<string, unknown>>(attemptId: string): Promise<T | null> {
     const raw = await this.client.get(this.attemptStateKey(attemptId));
     return raw ? JSON.parse(raw) : null;
-  }
-
-  async incrementViolationCount(attemptId: string): Promise<number> {
-    const key = this.attemptViolationsKey(attemptId);
-    const count = await this.client.incr(key);
-    await this.client.expire(key, TTL_BUFFER_SECONDS);
-    return count;
   }
 
   async addActiveStudent(testId: string, studentId: string) {

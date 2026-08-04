@@ -32,30 +32,58 @@ function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
   return map;
 }
 
+export interface AnalyticsFilters {
+  batch?: string;
+  section?: string;
+  // "true" -> only attempts with at least one logged violation. Every other
+  // stat (overview, byBatch, byQuestion, distribution, ...) is computed from
+  // the same already-filtered attempt list, so picking a batch/section/
+  // violations filter narrows EVERY number on the page, not just the
+  // per-student table — that used to only filter the table client-side,
+  // leaving the charts/overview cards showing all-batch numbers no matter
+  // what was selected.
+  hasViolations?: boolean;
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(private prisma: PrismaService) {}
 
   // Single source of truth for a test's analytics — the JSON endpoint and
   // the Excel export both call this so the two never drift apart.
-  async getAnalytics(testId: string) {
+  async getAnalytics(testId: string, filters: AnalyticsFilters = {}) {
     const test = await this.prisma.test.findUnique({
       where: { id: testId },
       include: { questions: { include: { options: true }, orderBy: { questionOrder: "asc" } } },
     });
     if (!test) throw new NotFoundException("Test not found");
 
+    // Scoped by the same batch/section filter as everything else below, so
+    // "completion rate" still means something when a filter is active
+    // rather than comparing a filtered numerator against an unfiltered
+    // denominator.
     const totalEligible = await this.prisma.student.count({
-      where: test.batchScope === "ALL" ? {} : { batch: test.batchScope as any },
+      where: {
+        ...(test.batchScope === "ALL" ? {} : { batch: test.batchScope as any }),
+        ...(filters.batch ? { batch: filters.batch as any } : {}),
+        ...(filters.section ? { section: filters.section } : {}),
+      },
     });
 
-    const attempts = await this.prisma.testAttempt.findMany({
+    const allAttempts = await this.prisma.testAttempt.findMany({
       where: { testId },
       include: {
         student: { include: { user: { select: { fullName: true } } } },
         answers: { include: { question: true, selectedOption: true } },
         violations: true,
       },
+    });
+
+    const attempts = allAttempts.filter((a) => {
+      if (filters.batch && a.student.batch !== filters.batch) return false;
+      if (filters.section && a.student.section !== filters.section) return false;
+      if (filters.hasViolations && a.violations.length === 0) return false;
+      return true;
     });
 
     const maxScore = test.questions.reduce((sum, q) => sum + Number(q.marks), 0);
@@ -192,8 +220,11 @@ export class AnalyticsService {
     };
   }
 
-  async buildWorkbook(testId: string): Promise<{ workbook: ExcelJS.Workbook; data: Awaited<ReturnType<AnalyticsService["getAnalytics"]>> }> {
-    const data = await this.getAnalytics(testId);
+  async buildWorkbook(
+    testId: string,
+    filters: AnalyticsFilters = {}
+  ): Promise<{ workbook: ExcelJS.Workbook; data: Awaited<ReturnType<AnalyticsService["getAnalytics"]>> }> {
+    const data = await this.getAnalytics(testId, filters);
     return { workbook: this.buildWorkbookFromData(data), data };
   }
 

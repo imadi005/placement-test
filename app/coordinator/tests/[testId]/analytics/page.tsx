@@ -110,33 +110,70 @@ export default function TestAnalyticsPage() {
   const testId = params.testId as string;
 
   const [data, setData] = useState<Analytics | null>(null);
+  // Populated once from an unfiltered load — the dropdown option lists stay
+  // stable regardless of what's currently selected, instead of shrinking to
+  // "only what's left after filtering" every time a filter is applied.
+  const [filterOptions, setFilterOptions] = useState<{ batches: string[]; sections: string[] }>({
+    batches: [],
+    sections: [],
+  });
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [batchFilter, setBatchFilter] = useState("ALL");
   const [sectionFilter, setSectionFilter] = useState("ALL");
+  const [violationsOnly, setViolationsOnly] = useState(false);
   const [search, setSearch] = useState("");
 
+  function buildQuery() {
+    const params = new URLSearchParams();
+    if (batchFilter !== "ALL") params.set("batch", batchFilter);
+    if (sectionFilter !== "ALL") params.set("section", sectionFilter);
+    if (violationsOnly) params.set("hasViolations", "true");
+    const qs = params.toString();
+    return qs ? `?${qs}` : "";
+  }
+
+  // Every filter narrows every stat on the page (overview cards, charts,
+  // table) — so a change to any of them re-fetches from the server rather
+  // than re-filtering a fixed client-side dataset, which used to only ever
+  // touch the per-student table.
   useEffect(() => {
     if (!ready) return;
+    let cancelled = false;
     async function load() {
       try {
-        const res = await authFetch(`${API_URL}/tests/${testId}/analytics`);
+        const res = await authFetch(`${API_URL}/tests/${testId}/analytics${buildQuery()}`);
         if (!res.ok) {
-          setError("Couldn't load analytics for this test.");
+          if (!cancelled) setError("Couldn't load analytics for this test.");
           return;
         }
-        setData(await res.json());
+        const json = await res.json();
+        if (cancelled) return;
+        setData(json);
+        // Only seed the dropdown option lists the very first time (no
+        // filter active yet) — a later, filtered response's students array
+        // is a subset and would otherwise shrink the options.
+        if (batchFilter === "ALL" && sectionFilter === "ALL" && !violationsOnly) {
+          setFilterOptions({
+            batches: [...new Set(json.students.map((s: StudentRow) => s.batch))].sort() as string[],
+            sections: [...new Set(json.students.map((s: StudentRow) => s.section))].sort() as string[],
+          });
+        }
       } catch {
-        setError("Couldn't reach the server. Is the backend running?");
+        if (!cancelled) setError("Couldn't reach the server. Is the backend running?");
       }
     }
     load();
-  }, [ready, testId]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, testId, batchFilter, sectionFilter, violationsOnly]);
 
   async function handleExport() {
     setIsExporting(true);
     try {
-      const res = await authFetch(`${API_URL}/tests/${testId}/analytics/export`);
+      const res = await authFetch(`${API_URL}/tests/${testId}/analytics/export${buildQuery()}`);
       if (!res.ok) throw new Error();
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -154,20 +191,14 @@ export default function TestAnalyticsPage() {
     }
   }
 
-  const sections = useMemo(() => {
-    if (!data) return [];
-    return [...new Set(data.students.map((s) => s.section))].sort();
-  }, [data]);
-
+  // Batch/section/violations are already applied server-side (every stat on
+  // the page reflects them) — search stays client-side since it's a fast,
+  // no-round-trip narrowing of whatever the server already returned.
   const filteredStudents = useMemo(() => {
     if (!data) return [];
-    return data.students.filter((s) => {
-      if (batchFilter !== "ALL" && s.batch !== batchFilter) return false;
-      if (sectionFilter !== "ALL" && s.section !== sectionFilter) return false;
-      if (search && !`${s.fullName} ${s.rollNo}`.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-  }, [data, batchFilter, sectionFilter, search]);
+    if (!search) return data.students;
+    return data.students.filter((s) => `${s.fullName} ${s.rollNo}`.toLowerCase().includes(search.toLowerCase()));
+  }, [data, search]);
 
   if (!ready) return null;
 
@@ -209,6 +240,60 @@ export default function TestAnalyticsPage() {
           {isExporting ? "Preparing…" : "⬇ Download Excel report"}
         </Button>
       </header>
+
+      {/* Global filters — narrow every stat card, chart, and the table
+          below, not just the table (batch/section change what's fetched;
+          the Excel export uses the same filters too). */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <select
+          value={batchFilter}
+          onChange={(e) => setBatchFilter(e.target.value)}
+          className="h-9 rounded-md border border-outline-variant bg-surface-container-lowest px-2.5 text-body-sm text-on-surface"
+        >
+          <option value="ALL">All batches</option>
+          {filterOptions.batches.map((b) => (
+            <option key={b} value={b}>
+              Batch {b}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sectionFilter}
+          onChange={(e) => setSectionFilter(e.target.value)}
+          className="h-9 rounded-md border border-outline-variant bg-surface-container-lowest px-2.5 text-body-sm text-on-surface"
+        >
+          <option value="ALL">All sections</option>
+          {filterOptions.sections.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => setViolationsOnly((v) => !v)}
+          className={`h-9 rounded-md border px-3 text-body-sm font-medium transition-all ${
+            violationsOnly
+              ? "border-error bg-error-container text-on-error-container"
+              : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:text-on-surface"
+          }`}
+        >
+          ⚠ Violations only
+        </button>
+        {(batchFilter !== "ALL" || sectionFilter !== "ALL" || violationsOnly) && (
+          <button
+            type="button"
+            onClick={() => {
+              setBatchFilter("ALL");
+              setSectionFilter("ALL");
+              setViolationsOnly(false);
+            }}
+            className="h-9 rounded-md px-2.5 text-body-sm text-on-surface-variant underline underline-offset-4 hover:text-on-surface"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
 
       {/* Overview stat cards */}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -323,38 +408,12 @@ export default function TestAnalyticsPage() {
       {/* Per-student table */}
       <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif text-headline-md text-on-surface">Student breakdown</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or roll no…"
-            className="h-9 w-48 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
-          />
-          <select
-            value={batchFilter}
-            onChange={(e) => setBatchFilter(e.target.value)}
-            className="h-9 rounded-md border border-outline-variant bg-surface-container-lowest px-2.5 text-body-sm text-on-surface"
-          >
-            <option value="ALL">All batches</option>
-            {data.byBatch.map((b: any) => (
-              <option key={b.batch} value={b.batch}>
-                Batch {b.batch}
-              </option>
-            ))}
-          </select>
-          <select
-            value={sectionFilter}
-            onChange={(e) => setSectionFilter(e.target.value)}
-            className="h-9 rounded-md border border-outline-variant bg-surface-container-lowest px-2.5 text-body-sm text-on-surface"
-          >
-            <option value="ALL">All sections</option>
-            {sections.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name or roll no…"
+          className="h-9 w-48 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
+        />
       </div>
 
       <Card className="p-0">

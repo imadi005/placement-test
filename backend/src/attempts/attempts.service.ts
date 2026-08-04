@@ -251,7 +251,17 @@ export class AttemptsService {
       data: { attemptId, type: dto.type as any, meta: dto.meta as any },
     });
 
-    const count = await this.redis.incrementViolationCount(attemptId);
+    // Postgres, not Redis — the Redis counter used to expire after 30 min of
+    // no new violations for the same attempt (attemptViolationsKey's TTL),
+    // silently restarting from 1 on the next one instead of continuing the
+    // real total. That meant a student who spaced violations more than 30
+    // min apart could rack up well past MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT
+    // in the persisted audit trail (correctly visible in analytics) while
+    // never actually crossing the threshold that's supposed to auto-submit
+    // them. Every Violation row is already being persisted right above —
+    // counting those directly is both simpler and has no expiry to trip
+    // over.
+    const count = await this.prisma.violation.count({ where: { attemptId } });
 
     await this.redis.publishTestEvent(attempt.testId, {
       type: "violation",
