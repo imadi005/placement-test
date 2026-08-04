@@ -9,4 +9,6 @@ dist/
 .env*
 backend/scripts/load-test-data.json
 judge0/judge0.conf
+deploy/app-stack.env
+deploy/backend.env.lab
 tsconfig.tsbuildinfo

@@ -1,0 +1,25 @@
+# Copy to /etc/nginx/sites-available/placement-test-portal, replace
+# SERVER_NAME_OR_IP with the lab server's LAN hostname or IP, then:
+#   sudo ln -s /etc/nginx/sites-available/placement-test-portal /etc/nginx/sites-enabled/
+#   sudo rm -f /etc/nginx/sites-enabled/default   # avoid the stock "Welcome to nginx" page winning
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Only the frontend goes through nginx. The backend (port 4000) is reached
+# directly by the browser at http://SERVER_NAME_OR_IP:4000 — NEXT_PUBLIC_API_URL
+# points at it as its own origin, same relationship as Vercel-frontend /
+# Render-backend today, just both on one LAN box now. This sidesteps
+# rewriting API paths and proxying Socket.IO's upgrade handshake through
+# nginx, which is easy to get subtly wrong and unnecessary on a closed LAN.
+server {
+    listen 80;
+    server_name SERVER_NAME_OR_IP;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

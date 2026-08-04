@@ -1,0 +1,43 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# App-level Postgres + Redis — separate from judge0/docker-compose.yml's own
+# db/redis, which are private to Judge0's internal queue and never touched
+# by the NestJS backend. This stack replaces Neon + Upstash for a lab-server
+# deployment: same images, but a local always-on Postgres/Redis has no
+# serverless suspend and no round-trip off the LAN.
+#
+# Both ports are bound to 127.0.0.1 only — nothing outside this machine can
+# reach them directly. The backend (running on the same host, outside
+# Docker) connects over localhost.
+services:
+  db:
+    image: postgres:16.2
+    env_file: app-stack.env
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - app-db-data:/var/lib/postgresql/data/
+    logging: *default-logging
+    restart: always
+
+  redis:
+    image: redis:7.2
+    command: [
+      "bash", "-c",
+      'docker-entrypoint.sh --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    ]
+    env_file: app-stack.env
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - app-redis-data:/data
+    logging: *default-logging
+    restart: always
+
+volumes:
+  app-db-data:
+  app-redis-data:
