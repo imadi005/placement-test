@@ -361,6 +361,28 @@ export class AttemptsService {
   // `attempt:{id}:state`, not this endpoint).
   async submit(attemptId: string, studentId: string, reason: "manual" | "timeout" | "violation_threshold") {
     const attempt = await this.assertOwnership(attemptId, studentId);
+    const status = reason === "violation_threshold" ? "flagged" : "graded";
+
+    // Atomic claim — a single Alt+Tab genuinely fires both `visibilitychange`
+    // (tab_switch) and `fullscreenchange` (fullscreen_exit) in the same
+    // instant, so two concurrent violation reports both crossing the
+    // auto-submit threshold at once isn't a contrived race, it's a normal
+    // real-world action. assertOwnership()'s check above is a plain read —
+    // multiple concurrent calls can all see status="in_progress" and pass
+    // it before any of them commits. This updateMany's WHERE clause is the
+    // actual race-safe part: only the request whose UPDATE actually matches
+    // a still-"in_progress" row (Postgres serializes this per-row) flips
+    // it; everyone else affects 0 rows and returns the winner's result
+    // instead of redoing the full grading pass (which, for a coding-round
+    // test, would otherwise hit Judge0 with duplicate submissions per
+    // question — wasteful, not just slow).
+    const claim = await this.prisma.testAttempt.updateMany({
+      where: { id: attemptId, status: "in_progress" },
+      data: { status },
+    });
+    if (claim.count === 0) {
+      return this.prisma.testAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+    }
 
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
@@ -389,13 +411,11 @@ export class AttemptsService {
     const codingScore = codingGrades.reduce((sum, g) => sum + g.score, 0);
     const finalScore = mcqScore + codingScore;
 
-    const status = reason === "violation_threshold" ? "flagged" : "graded";
-
     const [updated] = await this.prisma.$transaction([
       this.prisma.testAttempt.update({
         where: { id: attemptId },
         data: {
-          status,
+          // status already flipped by the atomic claim above.
           submittedAt: new Date(),
           mcqScore,
           finalScore,
