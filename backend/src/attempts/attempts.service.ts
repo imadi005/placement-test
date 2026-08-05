@@ -296,7 +296,7 @@ export class AttemptsService {
 
     const codingProblem = await this.prisma.codingProblem.findUnique({
       where: { questionId: answer.questionId },
-      include: { testCases: { orderBy: { orderIndex: "asc" } } },
+      include: { testCases: { orderBy: { orderIndex: "asc" } }, question: { select: { marks: true } } },
     });
     if (!codingProblem) {
       return { answerId: answer.id, questionId: answer.questionId, score: 0, submission: null };
@@ -317,8 +317,20 @@ export class AttemptsService {
       toFunctionSignature(codingProblem)
     );
 
-    const maxScore = codingProblem.testCases.reduce((sum, tc) => sum + Number(tc.points), 0);
-    const score = results.reduce((sum, r) => sum + r.points, 0);
+    // Each test case's `points` is just a relative weight among that
+    // problem's own cases (defaults to 1 for every case, sample or
+    // hidden) — it was being used directly as the awarded/max score,
+    // so a 1-mark question with 3 test cases showed "3/3" instead of
+    // "1/1", and that inflated raw number fed straight into finalScore,
+    // pushing a test's total score past its own declared max. Scale the
+    // raw test-case result against the question's actual `marks` so a
+    // coding question's contribution to the score is worth exactly what
+    // its own marks say, same as an MCQ.
+    const rawMaxScore = codingProblem.testCases.reduce((sum, tc) => sum + Number(tc.points), 0);
+    const rawScore = results.reduce((sum, r) => sum + r.points, 0);
+    const questionMarks = Number(codingProblem.question.marks);
+    const maxScore = questionMarks;
+    const score = rawMaxScore > 0 ? (rawScore / rawMaxScore) * questionMarks : 0;
     const overallStatus = results.every((r) => r.passed)
       ? "accepted"
       : results.some((r) => r.status === "judge_unavailable")
