@@ -1,10 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisService } from "../redis/redis.service";
 import { CreateTestDto } from "./dto/create-test.dto";
 
 @Injectable()
 export class TestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private redis: RedisService) {}
 
   async create(dto: CreateTestDto, createdById: string) {
     return this.prisma.test.create({
@@ -97,11 +98,21 @@ export class TestsService {
     if (!test.approved) {
       throw new BadRequestException("Question set must be approved before starting");
     }
-    return this.prisma.test.update({ where: { id }, data: { status: "live", startedAt: new Date() } });
+    const updated = await this.prisma.test.update({ where: { id }, data: { status: "live", startedAt: new Date() } });
+    await this.redis.publishTestEvent(id, { type: "test_status_changed", status: updated.status });
+    return updated;
   }
 
+  // Ending the test is also the signal that unlocks each student's answer
+  // breakdown and the leaderboard (see attempts.service.ts's getResult() and
+  // this file's getLeaderboard() — both gated on status === "ended" so the
+  // paper can't leak to students still mid-test). This event is what lets a
+  // student already sitting on their results page pick that up live,
+  // instead of only finding out on their next manual refresh.
   async stop(id: string) {
-    return this.prisma.test.update({ where: { id }, data: { status: "ended" } });
+    const updated = await this.prisma.test.update({ where: { id }, data: { status: "ended" } });
+    await this.redis.publishTestEvent(id, { type: "test_status_changed", status: updated.status });
+    return updated;
   }
 
   // Cascading delete in FK-safe order: Violation has a RESTRICT relation to
@@ -195,6 +206,13 @@ export class TestsService {
       });
       if (!myAttempt || myAttempt.status === "in_progress") {
         throw new ForbiddenException("Submit your attempt to see the leaderboard.");
+      }
+      // Ranking students against each other while some are still mid-test
+      // gives an early finisher a read on how the paper's going ("only 4
+      // people ahead of me so far") they shouldn't have yet — coordinators/
+      // admins aren't gated here, they need to watch this in real time.
+      if (test.status !== "ended") {
+        throw new ForbiddenException("The leaderboard is available once the test has ended.");
       }
     }
 

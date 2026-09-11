@@ -474,12 +474,18 @@ export class AttemptsService {
   }
 
   // Includes each question's options (with isCorrect) and the student's
-  // selected option — safe to reveal here since the attempt is already
-  // submitted, unlike the strip-correct-answers rule on start().
+  // selected option — safe to reveal ONLY once the whole test has ended.
+  // Before that, another student could still be mid-exam on the same
+  // question set — an early finisher seeing "the correct answer was C"
+  // (and sharing it) leaks the paper to everyone still taking it. Score is
+  // never withheld (it's the student's own result, reveals nothing about
+  // the question bank), only the answer-level breakdown and — separately,
+  // in getLeaderboard() — the leaderboard itself.
   async getResult(attemptId: string, studentId: string) {
     const attempt = await this.prisma.testAttempt.findUnique({
       where: { id: attemptId },
       include: {
+        test: { select: { status: true } },
         answers: {
           include: {
             question: { include: { options: true } },
@@ -501,7 +507,20 @@ export class AttemptsService {
     });
     const maxScore = questions.reduce((sum, q) => sum + Number(q.marks), 0);
 
-    return { ...attempt, maxScore };
+    const resultsAvailable = attempt.test.status === "ended";
+    const { test, answers, ...rest } = attempt;
+
+    return {
+      ...rest,
+      maxScore,
+      testStatus: test.status,
+      resultsAvailable,
+      // Withhold the whole breakdown (question options, correctness,
+      // what was selected) until the coordinator ends the test — not just
+      // the isCorrect flags, since even seeing which options exist for a
+      // still-live question is more than an early finisher should get.
+      answers: resultsAvailable ? answers : [],
+    };
   }
 
   // Student's own dashboard — score history across every test they've taken.
