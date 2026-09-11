@@ -4,8 +4,8 @@ export interface LiveStudentRow {
   attemptId: string;
   studentId: string;
   studentName: string;
+  rollNo: string;
   section: string;
-  batch: string;
   violationCount: number;
 }
 
@@ -31,6 +31,7 @@ function StudentRow({ row }: { row: LiveStudentRow }) {
           {initials(row.studentName)}
         </span>
         <span className="truncate text-body-md text-on-surface">{row.studentName}</span>
+        <span className="shrink-0 text-body-sm text-on-surface-variant">{row.rollNo}</span>
       </div>
       {/* Violation count sits directly beside the name it belongs to —
           no scanning across a wide row to match a student to their count. */}
@@ -41,9 +42,12 @@ function StudentRow({ row }: { row: LiveStudentRow }) {
   );
 }
 
-// Grouped Section → Batch → student, matching how a coordinator actually
-// thinks about a cohort ("who's live in MCA A, batch A right now") rather
-// than one long flat list they have to scan for a name.
+// Grouped by Section, students sorted by roll number within each group —
+// matching how a coordinator actually thinks about a cohort ("who's live in
+// MCA A right now") rather than one long flat list they have to scan for a
+// name. Used to have an intermediate "batch" (A/B/C performance-tier)
+// grouping layer here too; retired in favor of section as the one grouping
+// concept used everywhere a test is scoped/displayed.
 export function LiveMonitoringTable({ rows }: { rows: LiveStudentRow[] }) {
   if (rows.length === 0) {
     return (
@@ -53,48 +57,35 @@ export function LiveMonitoringTable({ rows }: { rows: LiveStudentRow[] }) {
     );
   }
 
-  const bySection = new Map<string, Map<string, LiveStudentRow[]>>();
+  const bySection = new Map<string, LiveStudentRow[]>();
   for (const row of rows) {
-    if (!bySection.has(row.section)) bySection.set(row.section, new Map());
-    const byBatch = bySection.get(row.section)!;
-    if (!byBatch.has(row.batch)) byBatch.set(row.batch, []);
-    byBatch.get(row.batch)!.push(row);
+    if (!bySection.has(row.section)) bySection.set(row.section, []);
+    bySection.get(row.section)!.push(row);
   }
 
   const sections = [...bySection.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="flex flex-col gap-4">
-      {sections.map(([section, byBatch]) => {
-        const sectionTotal = [...byBatch.values()].reduce((sum, r) => sum + r.length, 0);
-        const sectionViolations = [...byBatch.values()]
-          .flat()
-          .reduce((sum, r) => sum + r.violationCount, 0);
-        const batches = [...byBatch.entries()].sort(([a], [b]) => a.localeCompare(b));
+      {sections.map(([section, students]) => {
+        const sectionViolations = students.reduce((sum, r) => sum + r.violationCount, 0);
 
         return (
           <div key={section} className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-soft-ink">
             <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container-low px-4 py-3">
               <h3 className="font-serif text-body-lg font-semibold text-on-surface">{section}</h3>
               <div className="flex items-center gap-2">
-                <Badge tone="neutral">{sectionTotal} active</Badge>
+                <Badge tone="neutral">{students.length} active</Badge>
                 {sectionViolations > 0 && <Badge tone="crimson">{sectionViolations} violations</Badge>}
               </div>
             </div>
 
-            {batches.map(([batch, students]) => (
-              <div key={batch}>
-                <p className="bg-surface-container-lowest px-4 pt-3 text-label-caps text-on-surface-variant">
-                  Batch {batch} · {students.length}
-                </p>
-                {students
-                  .slice()
-                  .sort((a, b) => b.violationCount - a.violationCount)
-                  .map((row) => (
-                    <StudentRow key={row.attemptId} row={row} />
-                  ))}
-              </div>
-            ))}
+            {students
+              .slice()
+              .sort((a, b) => a.rollNo.localeCompare(b.rollNo))
+              .map((row) => (
+                <StudentRow key={row.attemptId} row={row} />
+              ))}
           </div>
         );
       })}

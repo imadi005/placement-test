@@ -11,6 +11,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// Real academic sections — replaces the old artificial A/B/C performance
+// batch as what a test is scoped to. Kept in sync with backend/src/common/sections.ts.
+const SECTIONS = ["MCA A", "MCA B", "MCA C", "MCA D", "MSc Computer Science", "MSc Data Science"];
+
 interface Props {
   onClose: () => void;
   onDone: () => void;
@@ -214,17 +218,19 @@ export function CreateTestModal({ onClose, onDone }: Props) {
             />
           </label>
           <label>
-            <span className="mb-1.5 block text-body-sm text-on-surface-variant">Batch scope</span>
+            <span className="mb-1.5 block text-body-sm text-on-surface-variant">Section</span>
             <select
               value={batchScope}
               onChange={(e) => setBatchScope(e.target.value)}
               disabled={Boolean(testId)}
               className="h-11 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3.5 text-body-md text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none disabled:opacity-60"
             >
-              <option value="ALL">All batches</option>
-              <option value="A">Batch A</option>
-              <option value="B">Batch B</option>
-              <option value="C">Batch C</option>
+              <option value="ALL">All sections</option>
+              {SECTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </label>
           <label>

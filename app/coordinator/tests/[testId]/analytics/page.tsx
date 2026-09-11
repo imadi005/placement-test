@@ -59,7 +59,6 @@ interface StudentRow {
   attemptId: string;
   rollNo: string;
   fullName: string;
-  batch: string;
   section: string;
   status: string;
   mcqScore: number | null;
@@ -86,7 +85,6 @@ interface Analytics {
     flaggedCount: number;
     studentsWithViolations: number;
   };
-  byBatch: GroupStat[];
   bySection: GroupStat[];
   byQuestion: QuestionStat[];
   distribution: { label: string; count: number }[];
@@ -110,23 +108,18 @@ export default function TestAnalyticsPage() {
   const testId = params.testId as string;
 
   const [data, setData] = useState<Analytics | null>(null);
-  // Populated once from an unfiltered load — the dropdown option lists stay
+  // Populated once from an unfiltered load — the dropdown option list stays
   // stable regardless of what's currently selected, instead of shrinking to
   // "only what's left after filtering" every time a filter is applied.
-  const [filterOptions, setFilterOptions] = useState<{ batches: string[]; sections: string[] }>({
-    batches: [],
-    sections: [],
-  });
+  const [filterOptions, setFilterOptions] = useState<{ sections: string[] }>({ sections: [] });
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [batchFilter, setBatchFilter] = useState("ALL");
   const [sectionFilter, setSectionFilter] = useState("ALL");
   const [violationsOnly, setViolationsOnly] = useState(false);
   const [search, setSearch] = useState("");
 
   function buildQuery() {
     const params = new URLSearchParams();
-    if (batchFilter !== "ALL") params.set("batch", batchFilter);
     if (sectionFilter !== "ALL") params.set("section", sectionFilter);
     if (violationsOnly) params.set("hasViolations", "true");
     const qs = params.toString();
@@ -150,12 +143,11 @@ export default function TestAnalyticsPage() {
         const json = await res.json();
         if (cancelled) return;
         setData(json);
-        // Only seed the dropdown option lists the very first time (no
-        // filter active yet) — a later, filtered response's students array
-        // is a subset and would otherwise shrink the options.
-        if (batchFilter === "ALL" && sectionFilter === "ALL" && !violationsOnly) {
+        // Only seed the dropdown option list the very first time (no filter
+        // active yet) — a later, filtered response's students array is a
+        // subset and would otherwise shrink the options.
+        if (sectionFilter === "ALL" && !violationsOnly) {
           setFilterOptions({
-            batches: [...new Set(json.students.map((s: StudentRow) => s.batch))].sort() as string[],
             sections: [...new Set(json.students.map((s: StudentRow) => s.section))].sort() as string[],
           });
         }
@@ -168,7 +160,7 @@ export default function TestAnalyticsPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, testId, batchFilter, sectionFilter, violationsOnly]);
+  }, [ready, testId, sectionFilter, violationsOnly]);
 
   async function handleExport() {
     setIsExporting(true);
@@ -230,10 +222,10 @@ export default function TestAnalyticsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="font-serif text-headline-md text-on-surface">{data.test.title}</h1>
-            <Badge tone="neutral">Batch scope: {data.test.batchScope}</Badge>
+            <Badge tone="neutral">Section: {data.test.batchScope}</Badge>
           </div>
           <p className="mt-1 text-body-sm text-on-surface-variant">
-            Full performance report — every batch, every section, question-by-question.
+            Full performance report — every section, question-by-question.
           </p>
         </div>
         <Button onClick={handleExport} disabled={isExporting}>
@@ -242,21 +234,9 @@ export default function TestAnalyticsPage() {
       </header>
 
       {/* Global filters — narrow every stat card, chart, and the table
-          below, not just the table (batch/section change what's fetched;
-          the Excel export uses the same filters too). */}
+          below, not just the table (section changes what's fetched; the
+          Excel export uses the same filters too). */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        <select
-          value={batchFilter}
-          onChange={(e) => setBatchFilter(e.target.value)}
-          className="h-9 rounded-md border border-outline-variant bg-surface-container-lowest px-2.5 text-body-sm text-on-surface"
-        >
-          <option value="ALL">All batches</option>
-          {filterOptions.batches.map((b) => (
-            <option key={b} value={b}>
-              Batch {b}
-            </option>
-          ))}
-        </select>
         <select
           value={sectionFilter}
           onChange={(e) => setSectionFilter(e.target.value)}
@@ -280,11 +260,10 @@ export default function TestAnalyticsPage() {
         >
           ⚠ Violations only
         </button>
-        {(batchFilter !== "ALL" || sectionFilter !== "ALL" || violationsOnly) && (
+        {(sectionFilter !== "ALL" || violationsOnly) && (
           <button
             type="button"
             onClick={() => {
-              setBatchFilter("ALL");
               setSectionFilter("ALL");
               setViolationsOnly(false);
             }}
@@ -328,18 +307,6 @@ export default function TestAnalyticsPage() {
               <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(15,92,82,0.06)" }} />
               <Bar dataKey="count" name="Students" fill={CATEGORICAL_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Average score by batch" subtitle="Batch A / B / C comparison">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.byBatch} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID} vertical={false} />
-              <XAxis dataKey="batch" tick={axisTick} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
-              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(15,92,82,0.06)" }} />
-              <Bar dataKey="avgScore" name="Avg score" fill={CATEGORICAL_COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={56} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -426,7 +393,6 @@ export default function TestAnalyticsPage() {
               <tr className="border-b border-outline-variant">
                 <th className="p-3 text-label-caps text-on-surface-variant">Roll No</th>
                 <th className="p-3 text-label-caps text-on-surface-variant">Name</th>
-                <th className="p-3 text-label-caps text-on-surface-variant">Batch</th>
                 <th className="p-3 text-label-caps text-on-surface-variant">Section</th>
                 <th className="p-3 text-label-caps text-on-surface-variant">Status</th>
                 <th className="p-3 text-label-caps text-on-surface-variant">Score</th>
@@ -439,7 +405,6 @@ export default function TestAnalyticsPage() {
                 <tr key={s.attemptId} className="border-b border-outline-variant transition-colors last:border-0 hover:bg-surface-container-low">
                   <td className="p-3 text-body-sm text-on-surface">{s.rollNo}</td>
                   <td className="p-3 text-body-sm text-on-surface">{s.fullName}</td>
-                  <td className="p-3 text-body-sm text-on-surface-variant">{s.batch}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{s.section}</td>
                   <td className="p-3">
                     <Badge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status.replace("_", " ")}</Badge>
@@ -455,7 +420,7 @@ export default function TestAnalyticsPage() {
               ))}
               {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-body-sm text-on-surface-variant">
+                  <td colSpan={7} className="p-6 text-center text-body-sm text-on-surface-variant">
                     No students match this filter.
                   </td>
                 </tr>

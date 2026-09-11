@@ -60,12 +60,12 @@ export class TestsService {
     });
   }
 
-  // Student listing — only scheduled/live tests scoped to their own batch (or ALL)
-  async findVisibleForStudent(batch: string) {
+  // Student listing — only scheduled/live tests scoped to their own section (or ALL)
+  async findVisibleForStudent(section: string) {
     return this.prisma.test.findMany({
       where: {
         status: { in: ["scheduled", "live"] },
-        OR: [{ batchScope: batch }, { batchScope: "ALL" }],
+        OR: [{ batchScope: section }, { batchScope: "ALL" }],
       },
       orderBy: { scheduledStart: "asc" },
     });
@@ -151,7 +151,7 @@ export class TestsService {
         const test = await this.prisma.test.findUnique({ where: { id } });
         if (!test) return 0;
         return this.prisma.student.count({
-          where: test.batchScope === "ALL" ? {} : { batch: test.batchScope as any },
+          where: test.batchScope === "ALL" ? {} : { section: test.batchScope },
         });
       })(),
     ]);
@@ -160,8 +160,8 @@ export class TestsService {
       attemptId: a.id,
       studentId: a.studentId,
       studentName: a.student.user.fullName,
+      rollNo: a.student.rollNo,
       section: a.student.section,
-      batch: a.student.batch,
       startedAt: a.startedAt,
       violationCount: a._count.violations,
     }));
@@ -227,7 +227,6 @@ export class TestsService {
         studentId: a.studentId,
         rollNo: a.student.rollNo,
         fullName: a.student.user.fullName,
-        batch: a.student.batch,
         section: a.student.section,
         score: a.finalScore !== null ? Number(a.finalScore) : a.mcqScore !== null ? Number(a.mcqScore) : 0,
         totalCodingTimeMs: totalCodingTimeMs(a),

@@ -95,7 +95,7 @@ export default function CoordinatorHomePage() {
           <Card key={t.id} className="flex items-center justify-between transition-colors hover:border-outline">
             <div>
               <p className="text-body-md font-medium text-on-surface">{t.title}</p>
-              <p className="text-body-sm text-on-surface-variant">Batch scope: {t.batchScope}</p>
+              <p className="text-body-sm text-on-surface-variant">Section: {t.batchScope}</p>
             </div>
             <div className="flex items-center gap-3">
               <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} startedAt={t.startedAt} now={now} />

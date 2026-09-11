@@ -13,7 +13,6 @@ export class AnalyticsController {
 
   private parseFilters(query: Record<string, string>): AnalyticsFilters {
     return {
-      batch: query.batch || undefined,
       section: query.section || undefined,
       hasViolations: query.hasViolations === "true",
     };

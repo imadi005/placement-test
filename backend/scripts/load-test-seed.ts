@@ -8,6 +8,7 @@ import * as path from "path";
 // see, scoped batchScope "ALL". Run with: npx ts-node scripts/load-test-seed.ts
 // Clean up afterwards with: npx ts-node scripts/load-test-cleanup.ts
 const STUDENT_COUNT = Number(process.env.LOAD_TEST_STUDENTS ?? 1200);
+const QUESTION_COUNT = Number(process.env.LOAD_TEST_QUESTIONS ?? 5);
 const EMAIL_DOMAIN = "loadtest.internal"; // marker used by the cleanup script
 const PASSWORD = "LoadTest123!";
 
@@ -57,13 +58,26 @@ async function main() {
     },
   });
 
-  const questionBank = [
+  // A fixed 5-question bank, cycled to reach QUESTION_COUNT — content
+  // correctness doesn't matter for a load test, only that every question is
+  // a real row with 4 real options. A "(set N)" suffix keeps repeated
+  // cycles visually distinct rather than showing identical text 6 times.
+  const baseBank = [
     { text: "2 + 2 * 2 = ?", options: ["4", "6", "8", "16"], correct: 1 },
     { text: "Next in the sequence 1, 4, 9, 16, ?", options: ["20", "25", "24", "30"], correct: 1 },
     { text: "A train covers 60km in 1.5 hours. Its speed?", options: ["30 km/h", "40 km/h", "45 km/h", "60 km/h"], correct: 1 },
     { text: "Odd one out: Dog, Cat, Lion, Snake", options: ["Dog", "Cat", "Lion", "Snake"], correct: 3 },
     { text: "If A=1, B=2, ... what is J?", options: ["9", "10", "11", "12"], correct: 1 },
   ];
+  const questionBank = Array.from({ length: QUESTION_COUNT }, (_, i) => {
+    const pattern = baseBank[i % baseBank.length];
+    const cycle = Math.floor(i / baseBank.length) + 1;
+    return {
+      text: cycle > 1 ? `${pattern.text} (set ${cycle})` : pattern.text,
+      options: pattern.options,
+      correct: pattern.correct,
+    };
+  });
   for (let i = 0; i < questionBank.length; i++) {
     const q = questionBank[i];
     await prisma.question.create({

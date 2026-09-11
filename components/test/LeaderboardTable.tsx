@@ -5,7 +5,6 @@ export interface LeaderboardEntry {
   rank: number;
   rollNo: string;
   fullName: string;
-  batch: string;
   section: string;
   score: number;
 }
@@ -54,7 +53,6 @@ export function LeaderboardTable({
               <th className="p-3 text-label-caps text-on-surface-variant">Rank</th>
               <th className="p-3 text-label-caps text-on-surface-variant">Name</th>
               <th className="p-3 text-label-caps text-on-surface-variant">Roll No</th>
-              <th className="p-3 text-label-caps text-on-surface-variant">Batch</th>
               <th className="p-3 text-label-caps text-on-surface-variant">Section</th>
               <th className="p-3 text-label-caps text-on-surface-variant">Score</th>
             </tr>
@@ -76,7 +74,6 @@ export function LeaderboardTable({
                     {e.fullName} {isMe && <Badge tone="neutral">You</Badge>}
                   </td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{e.rollNo}</td>
-                  <td className="p-3 text-body-sm text-on-surface-variant">{e.batch}</td>
                   <td className="p-3 text-body-sm text-on-surface-variant">{e.section}</td>
                   <td className="p-3 font-serif font-semibold text-on-surface">
                     {maxScore !== undefined ? `${e.score}/${maxScore}` : e.score}

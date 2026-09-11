@@ -33,14 +33,13 @@ function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
 }
 
 export interface AnalyticsFilters {
-  batch?: string;
   section?: string;
   // "true" -> only attempts with at least one logged violation. Every other
-  // stat (overview, byBatch, byQuestion, distribution, ...) is computed from
-  // the same already-filtered attempt list, so picking a batch/section/
+  // stat (overview, bySection, byQuestion, distribution, ...) is computed
+  // from the same already-filtered attempt list, so picking a section/
   // violations filter narrows EVERY number on the page, not just the
   // per-student table — that used to only filter the table client-side,
-  // leaving the charts/overview cards showing all-batch numbers no matter
+  // leaving the charts/overview cards showing all-section numbers no matter
   // what was selected.
   hasViolations?: boolean;
 }
@@ -58,14 +57,13 @@ export class AnalyticsService {
     });
     if (!test) throw new NotFoundException("Test not found");
 
-    // Scoped by the same batch/section filter as everything else below, so
+    // Scoped by the same section filter as everything else below, so
     // "completion rate" still means something when a filter is active
     // rather than comparing a filtered numerator against an unfiltered
     // denominator.
     const totalEligible = await this.prisma.student.count({
       where: {
-        ...(test.batchScope === "ALL" ? {} : { batch: test.batchScope as any }),
-        ...(filters.batch ? { batch: filters.batch as any } : {}),
+        ...(test.batchScope === "ALL" ? {} : { section: test.batchScope }),
         ...(filters.section ? { section: filters.section } : {}),
       },
     });
@@ -80,7 +78,6 @@ export class AnalyticsService {
     });
 
     const attempts = allAttempts.filter((a) => {
-      if (filters.batch && a.student.batch !== filters.batch) return false;
       if (filters.section && a.student.section !== filters.section) return false;
       if (filters.hasViolations && a.violations.length === 0) return false;
       return true;
@@ -129,10 +126,6 @@ export class AnalyticsService {
         })
         .sort((a: any, b: any) => String(a[keyName]).localeCompare(String(b[keyName])));
 
-    const byBatch = aggregateGroup(
-      groupBy(submitted, (a) => a.student.batch),
-      "batch"
-    );
     const bySection = aggregateGroup(
       groupBy(submitted, (a) => a.student.section),
       "section"
@@ -187,7 +180,6 @@ export class AnalyticsService {
           attemptId: a.id,
           rollNo: a.student.rollNo,
           fullName: a.student.user.fullName,
-          batch: a.student.batch,
           section: a.student.section,
           status: a.status,
           mcqScore: a.mcqScore !== null ? Number(a.mcqScore) : null,
@@ -211,7 +203,6 @@ export class AnalyticsService {
     return {
       test: { id: test.id, title: test.title, batchScope: test.batchScope, maxScore },
       overview,
-      byBatch,
       bySection,
       byQuestion,
       distribution,
@@ -255,7 +246,7 @@ export class AnalyticsService {
     styleHeaderRow(overviewSheet.getRow(1));
     overviewSheet.addRows([
       { metric: "Test title", value: data.test.title },
-      { metric: "Batch scope", value: data.test.batchScope },
+      { metric: "Section scope", value: data.test.batchScope },
       { metric: "Max possible score", value: data.test.maxScore },
       { metric: "Total eligible students", value: data.overview.totalEligible },
       { metric: "Total attempted", value: data.overview.totalAttempted },
@@ -271,21 +262,6 @@ export class AnalyticsService {
       { metric: "Low score", value: data.overview.lowScore },
       { metric: "Average violations per attempt", value: data.overview.avgViolations.toFixed(2) },
     ]);
-
-    // --- By Batch ---
-    const batchSheet = wb.addWorksheet("By Batch");
-    batchSheet.columns = [
-      { header: "Batch", key: "batch", width: 14 },
-      { header: "Attempted", key: "attempted", width: 14 },
-      { header: "Avg Score", key: "avgScore", width: 14 },
-      { header: "High Score", key: "highScore", width: 14 },
-      { header: "Low Score", key: "lowScore", width: 14 },
-      { header: "Avg Violations", key: "avgViolations", width: 16 },
-    ];
-    styleHeaderRow(batchSheet.getRow(1));
-    for (const row of data.byBatch) {
-      batchSheet.addRow({ ...row, avgScore: row.avgScore.toFixed(2), avgViolations: row.avgViolations.toFixed(2) });
-    }
 
     // --- By Section ---
     const sectionSheet = wb.addWorksheet("By Section");
@@ -345,8 +321,7 @@ export class AnalyticsService {
     studentsSheet.columns = [
       { header: "Roll No", key: "rollNo", width: 16 },
       { header: "Name", key: "fullName", width: 26 },
-      { header: "Batch", key: "batch", width: 10 },
-      { header: "Section", key: "section", width: 14 },
+      { header: "Section", key: "section", width: 16 },
       { header: "Status", key: "status", width: 16 },
       { header: "MCQ Score", key: "mcqScore", width: 12 },
       { header: "Final Score", key: "finalScore", width: 12 },

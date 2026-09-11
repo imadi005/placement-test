@@ -18,14 +18,14 @@ export class TestsController {
     return this.testsService.create(dto, user.id);
   }
 
-  // Students see only tests scoped to their batch; staff see everything.
+  // Students see only tests scoped to their section; staff see everything.
   @Get()
   @Roles("student", "coordinator", "admin")
   async list(@CurrentUser() user: { id: string; role: string }) {
     if (user.role === "student") {
       const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
       if (!student) throw new NotFoundException("Student profile not found");
-      return this.testsService.findVisibleForStudent(student.batch);
+      return this.testsService.findVisibleForStudent(student.section);
     }
     return this.testsService.findAllForStaff(user.id);
   }
