@@ -128,14 +128,6 @@ export default function CoordinatorHomePage() {
                   Analytics
                 </Button>
               )}
-              {(t.status === "live" || t.status === "ended") && (
-                <Button
-                  variant="secondary"
-                  onClick={() => router.push(`/coordinator/tests/${t.id}/leaderboard`)}
-                >
-                  Leaderboard
-                </Button>
-              )}
               <Button variant="danger" onClick={() => deleteTest(t.id, t.title)}>
                 Delete
               </Button>

@@ -24,8 +24,8 @@ function ArrowIcon() {
 
 // Each row used to expand an inline accordion with the answer breakdown.
 // The full review page at /results/[attemptId] (already used right after a
-// student submits) is richer — score, rank, leaderboard, per-question
-// marks — so a row click now goes straight there instead of duplicating a
+// student submits) is richer — score plus the per-question marks breakdown
+// — so a row click now goes straight there instead of duplicating a
 // thinner version of the same data inline.
 export function ScoreHistoryTable({ rows }: { rows: ScoreRow[] }) {
   const router = useRouter();
