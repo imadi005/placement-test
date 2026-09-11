@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -31,6 +32,8 @@ const MAX_VIOLATIONS_BEFORE_AUTO_SUBMIT = 5;
 
 @Injectable()
 export class AttemptsService {
+  private readonly logger = new Logger(AttemptsService.name);
+
   constructor(private prisma: PrismaService, private redis: RedisService, private judge: JudgeService) {}
 
   // Design doc §5, step 1: creates the attempt row lazily as the student
@@ -371,7 +374,7 @@ export class AttemptsService {
   // elapsed-time claim — this only checks ownership + status, actual
   // deadline enforcement is the gateway's job (ticking against
   // `attempt:{id}:state`, not this endpoint).
-  async submit(attemptId: string, studentId: string, reason: "manual" | "timeout" | "violation_threshold") {
+  async submit(attemptId: string, studentId: string, reason: "manual" | "timeout" | "violation_threshold" | "test_ended") {
     const attempt = await this.assertOwnership(attemptId, studentId);
     const status = reason === "violation_threshold" ? "flagged" : "graded";
 
@@ -471,6 +474,34 @@ export class AttemptsService {
     });
 
     return updated;
+  }
+
+  // Called when a coordinator ends a still-running test (tests.service.ts's
+  // stop()) — before this, any attempt still "in_progress" at that moment
+  // just stayed stuck there forever: no score, no way for the student to
+  // ever submit (the exam page's own start()/answer/submit calls all
+  // require status === "live" on the test, which stop() had already
+  // changed), invisible to the leaderboard. Finalizes each one exactly like
+  // a manual submit — same grading path, same atomic per-attempt claim, so
+  // it can't double-grade if a student's own submit races with this at the
+  // same instant. Promise.allSettled, not Promise.all — one student's
+  // submission failing (e.g. a Judge0 hiccup) must not stop everyone else's
+  // from being finalized.
+  async submitAllInProgress(testId: string) {
+    const inProgress = await this.prisma.testAttempt.findMany({
+      where: { testId, status: "in_progress" },
+      select: { id: true, studentId: true },
+    });
+    const results = await Promise.allSettled(
+      inProgress.map((a) => this.submit(a.id, a.studentId, "test_ended"))
+    );
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      this.logger.error(
+        `submitAllInProgress: ${failures.length}/${inProgress.length} forced submissions failed for test ${testId}`
+      );
+    }
+    return { total: inProgress.length, succeeded: inProgress.length - failures.length };
   }
 
   // Includes each question's options (with isCorrect) and the student's

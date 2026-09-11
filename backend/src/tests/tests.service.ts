@@ -1,11 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
+import { AttemptsService } from "../attempts/attempts.service";
 import { CreateTestDto } from "./dto/create-test.dto";
 
 @Injectable()
 export class TestsService {
-  constructor(private prisma: PrismaService, private redis: RedisService) {}
+  constructor(private prisma: PrismaService, private redis: RedisService, private attempts: AttemptsService) {}
 
   async create(dto: CreateTestDto, createdById: string) {
     return this.prisma.test.create({
@@ -109,8 +110,18 @@ export class TestsService {
   // paper can't leak to students still mid-test). This event is what lets a
   // student already sitting on their results page pick that up live,
   // instead of only finding out on their next manual refresh.
+  // Ending the test used to just flip the status column — any attempt
+  // still "in_progress" at that moment was left stuck there forever (the
+  // exam page's answer/submit calls all require the test to still be
+  // "live", so a student mid-exam when this fires has no way to ever
+  // submit on their own; no score, invisible to the leaderboard). Now every
+  // in-progress attempt is force-submitted at whatever it had answered so
+  // far, same as a real submit. Done before the test_status_changed
+  // broadcast below, so a student's results page reacting to "ended"
+  // always finds a fully-settled leaderboard, not one still mid-update.
   async stop(id: string) {
     const updated = await this.prisma.test.update({ where: { id }, data: { status: "ended" } });
+    await this.attempts.submitAllInProgress(id);
     await this.redis.publishTestEvent(id, { type: "test_status_changed", status: updated.status });
     return updated;
   }
