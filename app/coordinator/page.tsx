@@ -18,13 +18,13 @@ interface TestRow {
   batchScope: string;
   scheduledStart: string | null;
   startedAt: string | null;
-  sectionSchedules: { section: string; scheduledStart: string }[];
+  sectionSchedules?: { section: string; scheduledStart: string }[];
 }
 
 // Groups sections sharing the same start time into one label, e.g.
 // "MCA A · 11:00 am  |  MCA B, MSc Computer Science · 11:45 am" — same
 // bucket-by-value idea as QuestionPalette's section grouping.
-function sectionScheduleSummary(schedules: TestRow["sectionSchedules"]): string {
+function sectionScheduleSummary(schedules: { section: string; scheduledStart: string }[]): string {
   const groups: { time: string; sections: string[] }[] = [];
   for (const s of schedules) {
     const time = new Date(s.scheduledStart).toLocaleTimeString("en-IN", {
@@ -118,7 +118,9 @@ export default function CoordinatorHomePage() {
             <div>
               <p className="text-body-md font-medium text-on-surface">{t.title}</p>
               <p className="text-body-sm text-on-surface-variant">
-                {t.sectionSchedules.length > 0 ? sectionScheduleSummary(t.sectionSchedules) : `Section: ${t.batchScope}`}
+                {(t.sectionSchedules?.length ?? 0) > 0
+                  ? sectionScheduleSummary(t.sectionSchedules!)
+                  : `Section: ${t.batchScope}`}
               </p>
             </div>
             <div className="flex items-center gap-3">
