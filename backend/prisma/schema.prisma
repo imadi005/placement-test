@@ -127,11 +127,29 @@ model Test {
   approved        Boolean    @default(false)
   createdAt       DateTime   @default(now()) @map("created_at")
 
-  questions    Question[]
-  attempts     TestAttempt[]
-  batchChanges BatchHistory[]
+  questions        Question[]
+  attempts         TestAttempt[]
+  batchChanges     BatchHistory[]
+  sectionSchedules TestSectionSchedule[]
 
   @@map("tests")
+}
+
+// Optional per-section override of when a test goes live for that section —
+// absent (no rows) means the test just uses batchScope/scheduledStart as a
+// single group like always. Present rows are the source of truth for BOTH
+// visibility (findVisibleForStudent) and per-student start gating
+// (attempts.service.ts's start()); batchScope is then forced to "ALL" and
+// no longer means anything for that test.
+model TestSectionSchedule {
+  id             String   @id @default(uuid())
+  testId         String   @map("test_id")
+  test           Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  section        String
+  scheduledStart DateTime @map("scheduled_start")
+
+  @@unique([testId, section])
+  @@map("test_section_schedules")
 }
 
 model Question {

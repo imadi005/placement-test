@@ -30,6 +30,33 @@ export class TestsService {
     return this.prisma.test.update({ where: { id }, data: { scheduledStart: new Date(scheduledStart) } });
   }
 
+  // Lets one test give different sections different start times (e.g.
+  // "MCA A" at 11:00, "MCA B"+"MSc Computer Science" at 11:45) instead of
+  // the single batchScope/scheduledStart every test used to be limited to.
+  // Replaces the whole set each call (delete+recreate) so re-opening the
+  // schedule UI before the test goes live is idempotent. batchScope is
+  // forced to "ALL" here because it no longer means anything once
+  // sectionSchedules exists — findVisibleForStudent and attempts.start()
+  // both read the schedule rows instead. The parent Test.scheduledStart is
+  // set to the earliest of the given times purely so the existing
+  // single-field auto-start poller (test-scheduler.service.ts) keeps
+  // working unmodified — it only needs to know when to flip status to
+  // "live", not which section that was for.
+  async setSectionSchedules(testId: string, schedules: { section: string; scheduledStart: string }[]) {
+    const earliest = schedules.reduce(
+      (min, s) => (s.scheduledStart < min ? s.scheduledStart : min),
+      schedules[0].scheduledStart
+    );
+    await this.prisma.$transaction([
+      this.prisma.testSectionSchedule.deleteMany({ where: { testId } }),
+      this.prisma.testSectionSchedule.createMany({
+        data: schedules.map((s) => ({ testId, section: s.section, scheduledStart: new Date(s.scheduledStart) })),
+      }),
+      this.prisma.test.update({ where: { id: testId }, data: { scheduledStart: new Date(earliest), batchScope: "ALL" } }),
+    ]);
+    return this.findOne(testId);
+  }
+
   async findOne(id: string) {
     const test = await this.prisma.test.findUnique({
       where: { id },
@@ -59,15 +86,23 @@ export class TestsService {
     return this.prisma.test.findMany({
       where: { OR: or },
       orderBy: { createdAt: "desc" },
+      include: { sectionSchedules: true },
     });
   }
 
-  // Student listing — only scheduled/live tests scoped to their own section (or ALL)
+  // Student listing — only scheduled/live tests scoped to their own section
+  // (or ALL). A test with per-section schedule rows (setSectionSchedules)
+  // is visible only to sections that have a row — batchScope is ignored for
+  // it, since it was forced to "ALL" the moment those rows were set. A test
+  // with no rows keeps the original single-batchScope behavior untouched.
   async findVisibleForStudent(section: string) {
     return this.prisma.test.findMany({
       where: {
         status: { in: ["scheduled", "live"] },
-        OR: [{ batchScope: section }, { batchScope: "ALL" }],
+        OR: [
+          { sectionSchedules: { some: { section } } },
+          { sectionSchedules: { none: {} }, batchScope: { in: [section, "ALL"] } },
+        ],
       },
       orderBy: { scheduledStart: "asc" },
     });
@@ -170,8 +205,13 @@ export class TestsService {
       // mean the student is done, regardless of whether grading is final.
       this.prisma.testAttempt.count({ where: { testId: id, status: { not: "in_progress" } } }),
       (async () => {
-        const test = await this.prisma.test.findUnique({ where: { id } });
+        const test = await this.prisma.test.findUnique({ where: { id }, include: { sectionSchedules: true } });
         if (!test) return 0;
+        if (test.sectionSchedules.length > 0) {
+          return this.prisma.student.count({
+            where: { section: { in: test.sectionSchedules.map((s) => s.section) } },
+          });
+        }
         return this.prisma.student.count({
           where: test.batchScope === "ALL" ? {} : { section: test.batchScope },
         });

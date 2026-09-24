@@ -18,6 +18,25 @@ interface TestRow {
   batchScope: string;
   scheduledStart: string | null;
   startedAt: string | null;
+  sectionSchedules: { section: string; scheduledStart: string }[];
+}
+
+// Groups sections sharing the same start time into one label, e.g.
+// "MCA A · 11:00 am  |  MCA B, MSc Computer Science · 11:45 am" — same
+// bucket-by-value idea as QuestionPalette's section grouping.
+function sectionScheduleSummary(schedules: TestRow["sectionSchedules"]): string {
+  const groups: { time: string; sections: string[] }[] = [];
+  for (const s of schedules) {
+    const time = new Date(s.scheduledStart).toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+    });
+    const existing = groups.find((g) => g.time === time);
+    if (existing) existing.sections.push(s.section);
+    else groups.push({ time, sections: [s.section] });
+  }
+  return groups.map((g) => `${g.sections.join(", ")} · ${g.time}`).join("  |  ");
 }
 
 export default function CoordinatorHomePage() {
@@ -60,6 +79,9 @@ export default function CoordinatorHomePage() {
   }
 
   async function stopTest(testId: string) {
+    if (!window.confirm("Are you sure you want to end the test? Students still in progress will be auto-submitted immediately.")) {
+      return;
+    }
     const res = await authFetch(`${API_URL}/tests/${testId}/stop`, { method: "POST" });
     if (res.ok) await loadTests();
     else setError("Couldn't stop the test.");
@@ -95,7 +117,9 @@ export default function CoordinatorHomePage() {
           <Card key={t.id} className="flex items-center justify-between transition-colors hover:border-outline">
             <div>
               <p className="text-body-md font-medium text-on-surface">{t.title}</p>
-              <p className="text-body-sm text-on-surface-variant">Section: {t.batchScope}</p>
+              <p className="text-body-sm text-on-surface-variant">
+                {t.sectionSchedules.length > 0 ? sectionScheduleSummary(t.sectionSchedules) : `Section: ${t.batchScope}`}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <TestStatusBadge status={t.status} scheduledStart={t.scheduledStart} startedAt={t.startedAt} now={now} />

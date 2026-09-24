@@ -53,17 +53,25 @@ export class AnalyticsService {
   async getAnalytics(testId: string, filters: AnalyticsFilters = {}) {
     const test = await this.prisma.test.findUnique({
       where: { id: testId },
-      include: { questions: { include: { options: true }, orderBy: { questionOrder: "asc" } } },
+      include: {
+        questions: { include: { options: true }, orderBy: { questionOrder: "asc" } },
+        sectionSchedules: true,
+      },
     });
     if (!test) throw new NotFoundException("Test not found");
 
     // Scoped by the same section filter as everything else below, so
     // "completion rate" still means something when a filter is active
     // rather than comparing a filtered numerator against an unfiltered
-    // denominator.
+    // denominator. A test with per-section schedule rows (setSectionSchedules)
+    // is eligible for exactly those sections, regardless of batchScope.
     const totalEligible = await this.prisma.student.count({
       where: {
-        ...(test.batchScope === "ALL" ? {} : { section: test.batchScope }),
+        ...(test.sectionSchedules.length > 0
+          ? { section: { in: test.sectionSchedules.map((s) => s.section) } }
+          : test.batchScope === "ALL"
+            ? {}
+            : { section: test.batchScope }),
         ...(filters.section ? { section: filters.section } : {}),
       },
     });
@@ -200,8 +208,24 @@ export class AnalyticsService {
         return aTime - bTime;
       });
 
+    // "MCA A (11:00 am), MCA B, MSc Computer Science (11:45 am)" for a test
+    // using per-section schedules, else just the plain batchScope as before.
+    const scopeLabel =
+      test.sectionSchedules.length > 0
+        ? test.sectionSchedules
+            .map(
+              (s) =>
+                `${s.section} (${s.scheduledStart.toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "Asia/Kolkata",
+                })})`
+            )
+            .join(", ")
+        : test.batchScope;
+
     return {
-      test: { id: test.id, title: test.title, batchScope: test.batchScope, maxScore },
+      test: { id: test.id, title: test.title, batchScope: scopeLabel, maxScore },
       overview,
       bySection,
       byQuestion,

@@ -34,6 +34,17 @@ export function CreateTestModal({ onClose, onDone }: Props) {
   const [mode, setMode] = useState<"now" | "schedule">("now");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  // Per-section start times — e.g. MCA A at 11:00, MCA B + MSc Computer
+  // Science at 11:45, all as one test. When on, batchScope/the single
+  // date+time above are ignored in favor of one row per checked section.
+  const [customTiming, setCustomTiming] = useState(false);
+  const [sectionTimes, setSectionTimes] = useState<Record<string, { enabled: boolean; date: string; time: string }>>(
+    Object.fromEntries(SECTIONS.map((s) => [s, { enabled: false, date: "", time: "" }]))
+  );
+
+  function updateSectionTime(section: string, patch: Partial<{ enabled: boolean; date: string; time: string }>) {
+    setSectionTimes((prev) => ({ ...prev, [section]: { ...prev[section], ...patch } }));
+  }
 
   const [testId, setTestId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
@@ -158,17 +169,42 @@ export function CreateTestModal({ onClose, onDone }: Props) {
     }
   }
 
+  function sectionScheduleEntries() {
+    return SECTIONS.filter((s) => sectionTimes[s]?.enabled && sectionTimes[s]?.date && sectionTimes[s]?.time).map(
+      (s) => ({
+        section: s,
+        scheduledStart: new Date(`${sectionTimes[s].date}T${sectionTimes[s].time}`).toISOString(),
+      })
+    );
+  }
+
   async function handleSchedule() {
-    if (!testId || questions.length === 0 || !date || !time) return;
+    if (!testId || questions.length === 0) return;
+    const entries = customTiming ? sectionScheduleEntries() : [];
+    if (customTiming && entries.length === 0) {
+      setError("Pick at least one section with a date and time.");
+      return;
+    }
+    if (!customTiming && (!date || !time)) return;
+
     setIsSubmitting("schedule");
     setError(null);
     try {
-      const patchRes = await authFetch(`${API_URL}/tests/${testId}`, {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({ scheduledStart: new Date(`${date}T${time}`).toISOString() }),
-      });
-      if (!patchRes.ok) throw new Error("Couldn't set the schedule time.");
+      if (customTiming) {
+        const putRes = await authFetch(`${API_URL}/tests/${testId}/section-schedules`, {
+          method: "PUT",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ schedules: entries }),
+        });
+        if (!putRes.ok) throw new Error("Couldn't set the per-section schedule.");
+      } else {
+        const patchRes = await authFetch(`${API_URL}/tests/${testId}`, {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ scheduledStart: new Date(`${date}T${time}`).toISOString() }),
+        });
+        if (!patchRes.ok) throw new Error("Couldn't set the schedule time.");
+      }
       await commitAndApprove(testId);
       const res = await authFetch(`${API_URL}/tests/${testId}/schedule`, { method: "POST" });
       if (!res.ok) throw new Error("Couldn't schedule the test.");
@@ -224,7 +260,7 @@ export function CreateTestModal({ onClose, onDone }: Props) {
             <select
               value={batchScope}
               onChange={(e) => setBatchScope(e.target.value)}
-              disabled={Boolean(testId)}
+              disabled={Boolean(testId) || customTiming}
               className="h-11 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3.5 text-body-md text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none disabled:opacity-60"
             >
               <option value="ALL">All sections</option>
@@ -248,11 +284,12 @@ export function CreateTestModal({ onClose, onDone }: Props) {
         </div>
 
         {/* When to run it */}
-        <div className="mb-6 inline-flex items-center gap-1 rounded-md bg-surface-container-high p-1">
+        <div className="mb-3 inline-flex items-center gap-1 rounded-md bg-surface-container-high p-1">
           <button
             type="button"
             onClick={() => setMode("now")}
-            className={`rounded px-3 py-1.5 text-body-sm font-medium transition-all duration-200 ${
+            disabled={customTiming}
+            className={`rounded px-3 py-1.5 text-body-sm font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
               mode === "now"
                 ? "bg-surface-container-lowest text-on-surface shadow-soft-ink"
                 : "text-on-surface-variant hover:text-on-surface"
@@ -273,7 +310,21 @@ export function CreateTestModal({ onClose, onDone }: Props) {
           </button>
         </div>
 
-        {mode === "schedule" && (
+        <label className="mb-6 flex cursor-pointer items-center gap-2 text-body-sm text-on-surface-variant">
+          <input
+            type="checkbox"
+            checked={customTiming}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setCustomTiming(on);
+              if (on) setMode("schedule");
+            }}
+            className="h-4 w-4 rounded border-outline-variant"
+          />
+          Custom per-section timing (different sections start at different times)
+        </label>
+
+        {mode === "schedule" && !customTiming && (
           <div className="mb-6 grid animate-fade-in grid-cols-2 gap-3">
             <label>
               <span className="mb-1.5 block text-body-sm text-on-surface-variant">Date</span>
@@ -283,6 +334,39 @@ export function CreateTestModal({ onClose, onDone }: Props) {
               <span className="mb-1.5 block text-body-sm text-on-surface-variant">Time</span>
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full" />
             </label>
+          </div>
+        )}
+
+        {customTiming && (
+          <div className="mb-6 flex animate-fade-in flex-col gap-2 rounded-md border border-outline-variant p-4">
+            <p className="mb-1 text-label-caps text-on-surface-variant">Per-section start times</p>
+            {SECTIONS.map((s) => (
+              <div key={s} className="flex items-center gap-3">
+                <label className="flex w-48 shrink-0 cursor-pointer items-center gap-2 text-body-sm text-on-surface">
+                  <input
+                    type="checkbox"
+                    checked={sectionTimes[s]?.enabled ?? false}
+                    onChange={(e) => updateSectionTime(s, { enabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-outline-variant"
+                  />
+                  {s}
+                </label>
+                <Input
+                  type="date"
+                  value={sectionTimes[s]?.date ?? ""}
+                  onChange={(e) => updateSectionTime(s, { date: e.target.value })}
+                  disabled={!sectionTimes[s]?.enabled}
+                  className="w-full disabled:opacity-40"
+                />
+                <Input
+                  type="time"
+                  value={sectionTimes[s]?.time ?? ""}
+                  onChange={(e) => updateSectionTime(s, { time: e.target.value })}
+                  disabled={!sectionTimes[s]?.enabled}
+                  className="w-full disabled:opacity-40"
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -327,7 +411,11 @@ export function CreateTestModal({ onClose, onDone }: Props) {
           {mode === "schedule" ? (
             <Button
               onClick={handleSchedule}
-              disabled={!canSubmit || !date || !time || isSubmitting !== null}
+              disabled={
+                !canSubmit ||
+                (customTiming ? sectionScheduleEntries().length === 0 : !date || !time) ||
+                isSubmitting !== null
+              }
             >
               {isSubmitting === "schedule" ? "Scheduling…" : "Schedule"}
             </Button>

@@ -139,7 +139,18 @@ export default function CoordinatorLiveMonitoringPage() {
         </div>
         <div className="flex gap-2">
           {testStatus === "live" && (
-            <Button variant="secondary" onClick={() => sendControl("stop")}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Are you sure you want to end the test? Students still in progress will be auto-submitted immediately."
+                  )
+                ) {
+                  sendControl("stop");
+                }
+              }}
+            >
               Stop test
             </Button>
           )}

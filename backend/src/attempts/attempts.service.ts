@@ -47,6 +47,27 @@ export class AttemptsService {
       throw new BadRequestException("This test is not currently live");
     }
 
+    // Per-section start times (tests.service.ts's setSectionSchedules) — a
+    // test can be "live" overall (the earliest section's time has passed)
+    // while a later section still isn't allowed in yet. No rows at all
+    // means this test never used per-section scheduling; skip entirely.
+    const sectionSchedules = await this.prisma.testSectionSchedule.findMany({ where: { testId } });
+    if (sectionSchedules.length > 0) {
+      const student = await this.prisma.student.findUnique({ where: { userId: studentId } });
+      const mySchedule = sectionSchedules.find((s) => s.section === student?.section);
+      if (!mySchedule) {
+        throw new ForbiddenException("This test is not scheduled for your section");
+      }
+      if (mySchedule.scheduledStart.getTime() > Date.now()) {
+        const time = mySchedule.scheduledStart.toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Asia/Kolkata",
+        });
+        throw new BadRequestException(`Your section's test starts at ${time}. Please check back then.`);
+      }
+    }
+
     let attempt = await this.prisma.testAttempt.findUnique({
       where: { testId_studentId: { testId, studentId } },
     });

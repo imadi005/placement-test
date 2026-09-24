@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -6,6 +6,7 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { TestsService } from "./tests.service";
 import { CreateTestDto } from "./dto/create-test.dto";
+import { SetSectionSchedulesDto } from "./dto/section-schedule.dto";
 
 @Controller("tests")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,6 +47,12 @@ export class TestsController {
   @Roles("coordinator")
   update(@Param("id") id: string, @Body() body: { scheduledStart: string }) {
     return this.testsService.updateScheduledStart(id, body.scheduledStart);
+  }
+
+  @Put(":id/section-schedules")
+  @Roles("coordinator")
+  setSectionSchedules(@Param("id") id: string, @Body() dto: SetSectionSchedulesDto) {
+    return this.testsService.setSectionSchedules(id, dto.schedules);
   }
 
   @Post(":id/approve-questions")
