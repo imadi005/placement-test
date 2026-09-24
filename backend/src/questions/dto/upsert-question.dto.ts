@@ -24,4 +24,12 @@ export class UpsertQuestionDto {
   @ValidateNested({ each: true })
   @Type(() => ReviewedOptionDto)
   options!: ReviewedOptionDto[];
+
+  @IsOptional()
+  @IsString()
+  sectionName?: string;
+
+  @IsOptional()
+  @IsString()
+  contextText?: string;
 }

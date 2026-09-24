@@ -111,6 +111,14 @@ export class ReviewedQuestionDto {
   @ValidateNested()
   @Type(() => CodingProblemDto)
   codingProblem?: CodingProblemDto;
+
+  @IsOptional()
+  @IsString()
+  sectionName?: string;
+
+  @IsOptional()
+  @IsString()
+  contextText?: string;
 }
 
 // The payload the coordinator's review screen submits after editing the

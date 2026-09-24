@@ -87,6 +87,8 @@ export class QuestionsService {
       questionText: q.questionText,
       questionOrder: q.questionOrder,
       questionType: q.questionType as any,
+      sectionName: q.sectionName ?? null,
+      contextText: q.contextText ?? null,
     }));
     // Only MCQ rows get options persisted — a coding question that still
     // carries leftover option state from before the coordinator switched
@@ -183,6 +185,8 @@ export class QuestionsService {
         questionType: dto.questionType as any,
         modelAnswer: dto.modelAnswer,
         rubricNotes: dto.rubricNotes,
+        sectionName: dto.sectionName ?? null,
+        contextText: dto.contextText ?? null,
         options: { create: dto.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })) },
       },
       include: { options: true },
@@ -204,6 +208,8 @@ export class QuestionsService {
             questionType: dto.questionType as any,
             modelAnswer: dto.modelAnswer,
             rubricNotes: dto.rubricNotes,
+            sectionName: dto.sectionName ?? null,
+            contextText: dto.contextText ?? null,
             options: { create: dto.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })) },
           },
           include: { options: true },

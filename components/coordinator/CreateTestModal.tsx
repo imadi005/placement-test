@@ -89,6 +89,8 @@ export function CreateTestModal({ onClose, onDone }: Props) {
         options: { label: string; text: string; isCorrect: boolean }[];
         modelAnswer?: string | null;
         parseWarning?: string | null;
+        sectionName?: string | null;
+        contextText?: string | null;
       }> = await res.json();
       setQuestions(
         draft.map((q) => ({ ...q, options: q.options.map((o) => ({ optionText: o.text, isCorrect: o.isCorrect })) }))

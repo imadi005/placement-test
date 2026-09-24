@@ -17,6 +17,14 @@ export interface EditableQuestion {
   options: EditableOption[];
   parseWarning?: string | null;
   codingProblem?: EditableCodingProblem;
+  // Groups this question within the test (e.g. "Quantitative Ability") —
+  // unrelated to a student's own academic section. Empty/undefined means
+  // "no section", same as every test before this feature existed.
+  sectionName?: string | null;
+  // A shared data table or reading passage this question (and often
+  // several around it) refers to — shown above the question on the exam
+  // screen when set.
+  contextText?: string | null;
 }
 
 interface Props {
@@ -71,6 +79,30 @@ export function QuestionReviewCard({ question, onChange, onRemove }: Props) {
           <Badge tone="gold">{question.parseWarning}</Badge>
         </div>
       )}
+
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-label-caps text-on-surface-variant">Section (optional)</span>
+          <input
+            value={question.sectionName ?? ""}
+            onChange={(e) => onChange({ ...question, sectionName: e.target.value || null })}
+            placeholder="e.g. Quantitative Ability"
+            className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-body-sm text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-label-caps text-on-surface-variant">
+            Shared context (optional) — table/passage this question refers to
+          </span>
+          <textarea
+            value={question.contextText ?? ""}
+            onChange={(e) => onChange({ ...question, contextText: e.target.value || null })}
+            rows={1}
+            placeholder="Leave blank if this question stands alone"
+            className="w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-body-sm text-on-surface transition-all focus:border-primary focus:shadow-glow focus:outline-none"
+          />
+        </label>
+      </div>
 
       <textarea
         value={question.questionText}

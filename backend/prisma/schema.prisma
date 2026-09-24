@@ -144,6 +144,14 @@ model Question {
   questionType  QuestionType @default(mcq) @map("question_type")
   modelAnswer   String?      @map("model_answer")
   rubricNotes   String?      @map("rubric_notes")
+  // Both nullable — plain single-section tests (the vast majority) never
+  // set either. sectionName groups questions within ONE test (e.g.
+  // "Quantitative Ability") — unrelated to Student.section, which is the
+  // student's own academic section. contextText holds a shared data
+  // table/reading passage duplicated across every question that shares it
+  // — simpler than a join table for text this small.
+  sectionName   String?      @map("section_name")
+  contextText   String?      @map("context_text")
 
   options           QuestionOption[]
   answers           AttemptAnswer[]

@@ -14,13 +14,29 @@ interface QuestionCardProps {
   options: Option[];
   selectedOptionId: string | null;
   onSelect: (optionId: string) => void;
+  // A shared data table or reading passage this question (and often several
+  // around it) refers to — absent for every question that stands alone.
+  contextText?: string | null;
 }
 
 // Every question is MCQ — no free-text/descriptive answer type to branch on.
-export function QuestionCard({ topic, questionText, options, selectedOptionId, onSelect }: QuestionCardProps) {
+export function QuestionCard({
+  topic,
+  questionText,
+  options,
+  selectedOptionId,
+  onSelect,
+  contextText,
+}: QuestionCardProps) {
   return (
     <div>
       <p className="text-label-caps text-primary">{topic}</p>
+      {contextText && (
+        <div className="mt-3 rounded-md border border-outline-variant bg-surface-container-low p-4">
+          <p className="mb-1.5 text-label-caps text-on-surface-variant">Reference material</p>
+          <p className="whitespace-pre-wrap text-body-sm text-on-surface">{contextText}</p>
+        </div>
+      )}
       <h1 className="mt-3 font-serif text-headline-md text-on-surface">{questionText}</h1>
 
       <div role="radiogroup" aria-label="Answer options" className="mt-8 flex flex-col gap-3">

@@ -64,20 +64,60 @@ export class QuestionExtractionService {
   extract(rawText: string): DraftQuestion[] {
     const normalized = rawText.replace(/\r\n/g, "\n").trim();
 
-    // Split on a line that starts a new numbered question: "1.", "Q1.", "12)"
-    const questionBoundary = /\n(?=(?:Q?\.?\s*)?\d{1,3}[.)]\s+\S)/g;
+    // Split on a line that starts a new numbered question ("1.", "Q1.",
+    // "12)"), a [SECTION: ...] directive, or a [CONTEXT] block — each of
+    // these begins a new chunk, same mechanism as the existing numbered-
+    // question split, just with two more trigger patterns.
+    const questionBoundary = /\n(?=(?:Q?\.?\s*)?\d{1,3}[.)]\s+\S|\[SECTION\s*:|\[CONTEXT)/gi;
     const chunks = normalized.split(questionBoundary).filter((c) => c.trim().length > 0);
 
     // The split above only guarantees chunks AFTER the first boundary start
-    // with a number — text before the very first numbered question (a
-    // title, "Set by: ..." line, instructions) ends up as chunks[0] and
-    // would otherwise get misread as a bogus "question 1". Drop it here
-    // rather than surfacing it as a fake question in the review UI.
+    // with a number/directive — text before the very first one (a title,
+    // "Set by: ..." line, instructions) ends up as chunks[0] and would
+    // otherwise get misread as a bogus "question 1". Drop it here rather
+    // than surfacing it as a fake question in the review UI.
     const numberedChunkPattern = /^(?:Q?\.?\s*)?\d{1,3}[.)]\s+\S/;
+    const isDirectiveChunk = (c: string) => /^\[SECTION\s*:/i.test(c) || /^\[CONTEXT/i.test(c);
     const withoutPreamble =
-      chunks.length > 0 && !numberedChunkPattern.test(chunks[0].trim()) ? chunks.slice(1) : chunks;
+      chunks.length > 0 && !numberedChunkPattern.test(chunks[0].trim()) && !isDirectiveChunk(chunks[0].trim())
+        ? chunks.slice(1)
+        : chunks;
 
-    return withoutPreamble.map((chunk, index) => this.parseAnyChunk(chunk, index + 1));
+    // [SECTION: ...] and [CONTEXT]...[/CONTEXT] both apply to every
+    // question from their position onward until the next directive of the
+    // same kind — tracked as running state across chunks rather than a
+    // second parsing pass, reusing the same chunk-by-chunk walk.
+    let currentSection: string | null = null;
+    let currentContext: string | null = null;
+    const questions: DraftQuestion[] = [];
+    let order = 1;
+
+    for (const chunk of withoutPreamble) {
+      const trimmed = chunk.trim();
+
+      const sectionMatch = trimmed.match(/^\[SECTION\s*:\s*(.*?)\]/i);
+      if (sectionMatch) {
+        currentSection = sectionMatch[1].trim() || null;
+        continue;
+      }
+
+      if (/^\[CONTEXT\s*:\s*none\s*\]/i.test(trimmed)) {
+        currentContext = null;
+        continue;
+      }
+      if (/^\[CONTEXT\]/i.test(trimmed)) {
+        const contextMatch = trimmed.match(/^\[CONTEXT\]([\s\S]*?)\[\/CONTEXT\]/i);
+        currentContext = contextMatch ? contextMatch[1].trim() || null : null;
+        continue;
+      }
+
+      const question = this.parseAnyChunk(chunk, order++);
+      question.sectionName = currentSection;
+      question.contextText = currentContext;
+      questions.push(question);
+    }
+
+    return questions;
   }
 
   private parseAnyChunk(chunk: string, order: number): DraftQuestion {

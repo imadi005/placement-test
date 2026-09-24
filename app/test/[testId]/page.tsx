@@ -24,6 +24,8 @@ interface BackendQuestion {
   questionType: string;
   options: { id: string; optionText: string }[];
   codingProblem: CodingProblemView | null;
+  sectionName: string | null;
+  contextText: string | null;
 }
 
 function formatTime(totalSeconds: number) {
@@ -458,6 +460,7 @@ export default function LiveTestPage() {
               options={options}
               selectedOptionId={answers[question.id] ?? null}
               onSelect={(optionId) => selectOption(question.id, optionId)}
+              contextText={question.contextText}
             />
           )}
         </div>
@@ -468,6 +471,7 @@ export default function LiveTestPage() {
             currentIndex={currentIndex}
             statusFor={statusFor}
             onJump={goToIndex}
+            sectionNames={questions.map((q) => q.sectionName)}
           />
         </div>
       </div>

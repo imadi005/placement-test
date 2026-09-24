@@ -34,6 +34,14 @@ export interface DraftQuestion {
   questionOrder: number;
   questionType: "mcq" | "descriptive" | "coding";
   options: DraftOption[];
+  // Set from a [SECTION: ...] directive active at this question's position
+  // in the uploaded file — groups questions within one test (e.g.
+  // "Quantitative Ability"), unrelated to a student's own academic section.
+  sectionName?: string | null;
+  // Set from a [CONTEXT]...[/CONTEXT] block active at this question's
+  // position — a shared data table or reading passage duplicated across
+  // every question that references it.
+  contextText?: string | null;
   // Populated only for descriptive questions with no detected options —
   // coordinator fills this in during review if the source doc didn't have it.
   modelAnswer?: string | null;
