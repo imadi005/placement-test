@@ -40,6 +40,8 @@ export default function QuestionReviewPage() {
             questionOrder: number;
             questionType: string;
             options: { optionText: string; isCorrect: boolean }[];
+            sectionName: string | null;
+            contextText: string | null;
             codingProblem: {
               constraints: string | null;
               timeLimitMs: number;
@@ -59,6 +61,8 @@ export default function QuestionReviewPage() {
                 questionOrder: q.questionOrder,
                 questionType: q.questionType,
                 options: q.options.map((o) => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
+                sectionName: q.sectionName,
+                contextText: q.contextText,
                 codingProblem: q.codingProblem
                   ? {
                       constraints: q.codingProblem.constraints ?? "",
@@ -117,6 +121,8 @@ export default function QuestionReviewPage() {
         options: { label: string; text: string; isCorrect: boolean }[];
         modelAnswer?: string | null;
         parseWarning?: string | null;
+        sectionName?: string | null;
+        contextText?: string | null;
       }> = await res.json();
 
       setQuestions(
