@@ -20,29 +20,48 @@ interface QuestionCardProps {
 }
 
 // contextText comes from the upload convention as plain text — a data
-// table is authored as pipe-delimited rows (see question-extraction.service.ts),
-// everything else is prose. Split into blocks on blank lines and render each
-// pipe-delimited block as a real <table> instead of dumping raw "|" text.
+// table is authored as pipe-delimited rows (see question-extraction.service.ts).
+// Uploaded .docx files put every line in its own Word paragraph, and
+// mammoth's extraction (docx-parser.service.ts) inserts a blank line between
+// EVERY paragraph on the way out — so a real table's rows end up with blank
+// lines between them too, not just between the prose intro and the table.
+// Grouping by blank lines alone would treat each row as its own 1-line
+// "block" and never detect a table. Instead, drop blank lines entirely and
+// group consecutive lines by whether they look like a table row ("|") —
+// a run of pipe-lines (however many blank lines separated them originally)
+// becomes one table; a run of prose lines renders as individual paragraphs.
 function ReferenceMaterial({ text }: { text: string }) {
-  const blocks = text.split(/\n\s*\n/).filter((b) => b.trim());
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const segments: { type: "table" | "prose"; lines: string[] }[] = [];
+  for (const line of lines) {
+    const type = line.includes("|") ? "table" : "prose";
+    const last = segments[segments.length - 1];
+    if (last && last.type === type) last.lines.push(line);
+    else segments.push({ type, lines: [line] });
+  }
 
   return (
     <div className="mt-3 rounded-md border border-outline-variant bg-surface-container-low p-4">
       <p className="mb-2 text-label-caps text-on-surface-variant">Reference material</p>
       <div className="flex flex-col gap-4">
-        {blocks.map((block, i) => {
-          const lines = block.split("\n").filter((l) => l.trim());
-          const isTable = lines.length > 1 && lines.every((l) => l.includes("|"));
-
-          if (!isTable) {
+        {segments.map((segment, i) => {
+          if (segment.type === "prose") {
             return (
-              <p key={i} className="whitespace-pre-wrap text-body-sm text-on-surface">
-                {block.trim()}
-              </p>
+              <div key={i} className="flex flex-col gap-2">
+                {segment.lines.map((line, li) => (
+                  <p key={li} className="text-body-sm text-on-surface">
+                    {line}
+                  </p>
+                ))}
+              </div>
             );
           }
 
-          const rows = lines.map((l) => l.split("|").map((cell) => cell.trim()));
+          const rows = segment.lines.map((l) => l.split("|").map((cell) => cell.trim()));
           const [header, ...body] = rows;
 
           return (
