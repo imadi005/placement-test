@@ -33,6 +33,12 @@ const REFRESH_COOKIE_OPTIONS = {
 // load testing, same pattern as GLOBAL_THROTTLE_LIMIT in app.module.ts.
 const AUTH_THROTTLE_LIMIT = Number(process.env.AUTH_THROTTLE_LIMIT ?? 5);
 
+// Same per-IP-sharing problem as login, for the OTP/forgot-password/reset
+// trio — several students on the same campus NAT hitting "forgot password"
+// around exam time would otherwise share one 5/min budget between all of
+// them. One shared override since all three are the same reset flow.
+const PASSWORD_RESET_THROTTLE_LIMIT = Number(process.env.PASSWORD_RESET_THROTTLE_LIMIT ?? 5);
+
 @Controller("auth")
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -67,7 +73,7 @@ export class AuthController {
   // same otpCodeHash/otpExpiresAt fields, so one verify endpoint covers
   // either. On success, hands back the same one-time token the
   // reset-password screen needs to finish the job.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: PASSWORD_RESET_THROTTLE_LIMIT, ttl: 60_000 } })
   @Post("verify-otp")
   @HttpCode(200)
   async verifyOtp(@Body() dto: VerifyOtpDto) {
@@ -88,7 +94,7 @@ export class AuthController {
   // Always returns the same generic response regardless of whether the
   // identifier matched an account — don't let this endpoint be used to
   // enumerate valid roll numbers/emails.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: PASSWORD_RESET_THROTTLE_LIMIT, ttl: 60_000 } })
   @Post("forgot-password")
   @HttpCode(200)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -100,7 +106,7 @@ export class AuthController {
   // first-login and emailed reset-link both end up here) — they just
   // proved ownership of the account, no reason to make them type
   // credentials again immediately after.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: PASSWORD_RESET_THROTTLE_LIMIT, ttl: 60_000 } })
   @Post("reset-password")
   @HttpCode(200)
   async resetPassword(@Body() dto: ResetPasswordDto, @Res({ passthrough: true }) res: Response) {
