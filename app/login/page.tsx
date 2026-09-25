@@ -26,6 +26,15 @@ export default function LoginPage() {
     const password = String(form.get("password"));
 
     try {
+      // Small random delay before the actual request — when a whole batch
+      // of students land on this page at once (a section's test going
+      // live), this spreads their login requests over a couple of seconds
+      // instead of all landing on the server's bcrypt-bound CPU in the same
+      // instant. Costs each individual student up to ~2.5s of extra wait,
+      // but meaningfully reduces worst-case queuing under a login storm —
+      // see the exam-day capacity discussion this was added for.
+      await new Promise((resolve) => setTimeout(resolve, Math.random() * 2500));
+
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
