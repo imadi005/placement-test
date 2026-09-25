@@ -9,6 +9,14 @@ import { MailService } from "../mail/mail.service";
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// bcrypt cost — every increment roughly doubles the CPU work per hash/compare.
+// Existing password hashes were created at 12; BCRYPT_COST controls what NEW
+// hashes use (see hashPassword() below) and what validateCredentials() lazily
+// migrates existing users toward on their next successful login. Lower this
+// (and let logins gradually rehash toward it) when login-storm CPU cost
+// matters more than the extra brute-force margin 12 gives on a leaked DB.
+const BCRYPT_COST = Number(process.env.BCRYPT_COST ?? 10);
+
 // Shows just enough of the address to confirm "yes, that's my inbox" without
 // giving a shoulder-surfer the whole thing — e.g. "25mcab58@kristujayanti.com"
 // becomes "25******58@kristujayanti.com".
@@ -65,6 +73,17 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    // Lazily migrate this user's hash toward BCRYPT_COST — fire-and-forget so
+    // it never adds latency to (or can fail) the login response itself. Over
+    // time, every active account's hash converges to the cheaper cost purely
+    // from normal logins, no mass reset needed.
+    if (bcrypt.getRounds(user.passwordHash) > BCRYPT_COST) {
+      bcrypt
+        .hash(password, BCRYPT_COST)
+        .then((rehashed) => this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: rehashed } }))
+        .catch((err) => this.logger.warn(`Background password rehash failed for user ${user.id}`, err as Error));
+    }
+
     return user;
   }
 
@@ -103,7 +122,7 @@ export class AuthService {
   }
 
   async hashPassword(plain: string) {
-    return bcrypt.hash(plain, 12);
+    return bcrypt.hash(plain, BCRYPT_COST);
   }
 
   // Called from the forced first-login screen — the user is already
@@ -125,7 +144,7 @@ export class AuthService {
   // means the email never arrives; the user can request a fresh OTP.
   private async generateAndSendOtp(user: { id: string; email: string }): Promise<void> {
     const otp = randomInt(0, 1_000_000).toString().padStart(6, "0");
-    const otpCodeHash = await bcrypt.hash(otp, 12);
+    const otpCodeHash = await bcrypt.hash(otp, BCRYPT_COST);
     await this.prisma.user.update({
       where: { id: user.id },
       data: { otpCodeHash, otpExpiresAt: new Date(Date.now() + OTP_TTL_MS) },
@@ -191,7 +210,7 @@ export class AuthService {
       // apart by response timing either — the response body was already
       // identical either way, but timing alone was enough to distinguish
       // them (real accounts measurably slower than nonexistent ones).
-      await bcrypt.hash("timing-equalizer", 12);
+      await bcrypt.hash("timing-equalizer", BCRYPT_COST);
       return;
     }
 
