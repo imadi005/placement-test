@@ -96,7 +96,7 @@ export class TestsService {
   // it, since it was forced to "ALL" the moment those rows were set. A test
   // with no rows keeps the original single-batchScope behavior untouched.
   async findVisibleForStudent(section: string) {
-    return this.prisma.test.findMany({
+    const tests = await this.prisma.test.findMany({
       where: {
         status: { in: ["scheduled", "live"] },
         OR: [
@@ -105,6 +105,18 @@ export class TestsService {
         ],
       },
       orderBy: { scheduledStart: "asc" },
+      include: { sectionSchedules: true },
+    });
+
+    // The row's own scheduledStart is the EARLIEST across all sections
+    // (setSectionSchedules), so every student saw that one time regardless
+    // of their own section. Swap in this student's own section's time when
+    // a schedule row for it exists — the dashboard reads `scheduledStart`
+    // as a plain field, so this keeps that contract while making the value
+    // student-specific instead of test-wide.
+    return tests.map(({ sectionSchedules, ...test }) => {
+      const mine = sectionSchedules.find((s) => s.section === section);
+      return mine ? { ...test, scheduledStart: mine.scheduledStart } : test;
     });
   }
 
